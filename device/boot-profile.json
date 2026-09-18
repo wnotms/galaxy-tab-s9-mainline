@@ -1,0 +1,178 @@
+{
+  "model": "SM-X710",
+  "codename": "gts9wifi",
+  "board_id": [
+    65544,
+    4
+  ],
+  "supported_revision_range": [
+    4,
+    32
+  ],
+  "source": "Owner snapshot from TWRP, not certified factory firmware",
+  "bootloader": "X710ZCU5CYH4",
+  "header_version": 4,
+  "page_size": 4096,
+  "partition_sizes": {
+    "boot": 100663296,
+    "dtbo": 16777216,
+    "init_boot": 8388608,
+    "vbmeta": 131072,
+    "vendor_boot": 100663296
+  },
+  "source_images": {
+    "partitions/boot.img": "66b9746b31ead824ee148dec81eebe683b12e9171aee9e8f7624616057c58985",
+    "partitions/dtbo.img": "ebf3ec4a1418fc2510671f32026d38932360c9cb6c5f1007e9783a115239ec7b",
+    "partitions/init_boot.img": "2971eb317c71d828af4d75532fa48b6f0b71ebda9ed117020e2dd7c5688dd4da",
+    "partitions/vbmeta.img": "9844859b45716a2a098c96cd38b15bb378e784dab34843d1edcd2704236d36e4",
+    "partitions/vendor_boot.img": "5931bd19033555d27c093b9a14bd74a4f4c23315eb0dc0d6cdebe1a1a4a06ab2"
+  },
+  "boot_images": {
+    "boot": {
+      "header_version": 4,
+      "header_size": 1584,
+      "kernel_size": 38377984,
+      "ramdisk_size": 0,
+      "os_version": 436208023,
+      "cmdline": "",
+      "page_size": 4096
+    },
+    "init_boot": {
+      "header_version": 4,
+      "header_size": 1584,
+      "kernel_size": 0,
+      "ramdisk_size": 2131719,
+      "os_version": 436208023,
+      "cmdline": "",
+      "page_size": 4096,
+      "ramdisk_magic": "02214c18"
+    },
+    "vendor_boot": {
+      "header_version": 4,
+      "page_size": 4096,
+      "tags_addr": "0x1e00000",
+      "name": "SRPWB24A005",
+      "kernel_addr": "0x8000",
+      "ramdisk_addr": "0x2000000",
+      "dtb_addr": "0x1f00000",
+      "vendor_ramdisk_size": 13372360,
+      "ramdisk_magic": "02214c18",
+      "dtb_size": 1803659,
+      "cmdline": "video=vfb:640x400,bpp=32,memsize=3072000 printk.devkmsg=on firmware_class.path=/vendor/firmware_mnt/image bootconfig loop.max_part=7",
+      "bootconfig": "androidboot.hardware=qcom\nandroidboot.memcg=1\nandroidboot.usbcontroller=a600000.dwc3\n",
+      "ramdisk_entries": [
+        {
+          "size": 13372360,
+          "offset": 0,
+          "type": 1,
+          "name": "",
+          "board_id": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  },
+  "dtbo_entries": [
+    {
+      "index": 0,
+      "size": 798224,
+      "id": 0,
+      "revision": 0,
+      "custom": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "root": {
+        "model": [
+          "Samsung GTS9WIFI PROJECT (board-id,02)"
+        ],
+        "compatible": [
+          "qcom,kalama-mtp",
+          "qcom,kalama",
+          "qcom,mtp"
+        ],
+        "qcom,msm-id": [
+          "0x218",
+          "0x20000",
+          "0x207",
+          "0x20000",
+          "0x207",
+          "0x10000",
+          "0x218",
+          "0x10000"
+        ],
+        "qcom,board-id": [
+          "0x10008",
+          "0x2"
+        ],
+        "dtbo-hw_rev": [
+          "0x2"
+        ],
+        "dtbo-hw_rev_end": [
+          "0x3"
+        ]
+      }
+    },
+    {
+      "index": 1,
+      "size": 798020,
+      "id": 0,
+      "revision": 0,
+      "custom": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "root": {
+        "model": [
+          "Samsung GTS9WIFI PROJECT (board-id,04)"
+        ],
+        "compatible": [
+          "qcom,kalama-mtp",
+          "qcom,kalama",
+          "qcom,mtp"
+        ],
+        "qcom,msm-id": [
+          "0x218",
+          "0x20000",
+          "0x207",
+          "0x20000",
+          "0x207",
+          "0x10000",
+          "0x218",
+          "0x10000"
+        ],
+        "qcom,board-id": [
+          "0x10008",
+          "0x4"
+        ],
+        "dtbo-hw_rev": [
+          "0x4"
+        ],
+        "dtbo-hw_rev_end": [
+          "0x20"
+        ]
+      }
+    }
+  ],
+  "vbmeta_flags": 2
+}

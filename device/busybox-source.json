@@ -1,0 +1,9 @@
+{
+  "Package": "busybox-static",
+  "Version": "1:1.37.0-6+b9",
+  "Architecture": "arm64",
+  "Filename": "pool/main/b/busybox/busybox-static_1.37.0-6+b9_arm64.deb",
+  "Size": "847552",
+  "SHA256": "c833be48abfa16bc19c4966ec93e289ff1ce5d2f1476cad3a57bd105378cd15c",
+  "url": "https://deb.debian.org/debian/pool/main/b/busybox/busybox-static_1.37.0-6+b9_arm64.deb"
+}

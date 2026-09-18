@@ -1,0 +1,49 @@
+#!/bin/busybox sh
+# SPDX-License-Identifier: MIT
+export PATH=/bin:/sbin
+busybox --install -s /bin
+mount -t devtmpfs devtmpfs /dev
+mkdir -p /dev/pts /proc /sys /run /tmp /sys/kernel/config
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devpts devpts /dev/pts
+mount -t tmpfs tmpfs /run
+mount -t tmpfs tmpfs /tmp
+echo 'Galaxy Tab S9 mainline diagnostic initramfs (experimental)' > /dev/kmsg
+mount -t configfs configfs /sys/kernel/config
+G=/sys/kernel/config/usb_gadget/gts9wifi
+mkdir -p "$G"
+echo 0x1d6b > "$G/idVendor"
+echo 0x0104 > "$G/idProduct"
+mkdir -p "$G/strings/0x409"
+echo 'S9-bringup' > "$G/strings/0x409/serialnumber"
+echo 'Mainline bring-up' > "$G/strings/0x409/manufacturer"
+echo 'SM-X710 USB diagnostic network' > "$G/strings/0x409/product"
+mkdir -p "$G/configs/c.1/strings/0x409" "$G/functions/ncm.usb0"
+echo 'USB NCM' > "$G/configs/c.1/strings/0x409/configuration"
+echo 250 > "$G/configs/c.1/MaxPower"
+echo '02:71:00:00:00:01' > "$G/functions/ncm.usb0/dev_addr"
+echo '02:71:00:00:00:02' > "$G/functions/ncm.usb0/host_addr"
+ln -s "$G/functions/ncm.usb0" "$G/configs/c.1/ncm.usb0"
+# Probe deferral may leave the controller unavailable briefly.
+i=0
+while [ "$i" -lt 30 ]; do
+ for controller in /sys/class/udc/*; do
+  [ -e "$controller" ] || continue
+  echo "${controller##*/}" > "$G/UDC"
+  break
+ done
+ [ -n "$(cat "$G/UDC")" ] && break
+ i=$((i + 1)); sleep 1
+done
+ifconfig usb0 172.16.71.1 netmask 255.255.255.0 up
+# Diagnostic shell reachable only over the directly attached USB link.
+# No authentication: use this RAM-only image for development, not deployment.
+telnetd -b 172.16.71.1 -p 23 -l /bin/sh
+dmesg > /run/boot-dmesg.txt
+echo 'initramfs ready; USB NCM address 172.16.71.1, telnet port 23' > /dev/kmsg
+# Never mount internal UFS or modify Android partitions. Stay in RAM.
+while :; do
+ setsid sh -c 'exec sh </dev/console >/dev/console 2>&1'
+ sleep 5
+done

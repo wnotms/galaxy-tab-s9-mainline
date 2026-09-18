@@ -1,0 +1,41 @@
+{
+  "avbtool": {
+    "commit": "761178607206f4cb2af79ed9eec52d8cbd814adb",
+    "url": "https://android.googlesource.com/platform/external/avb/+/761178607206f4cb2af79ed9eec52d8cbd814adb/avbtool.py?format=TEXT",
+    "sha256": "e5a664a38db623da00f080219bc0ee60a640a9dc4a872803616fae4938ac749b",
+    "license": "Apache-2.0"
+  },
+  "lz4": {
+    "version": "1.10.0",
+    "url": "https://codeload.github.com/lz4/lz4/tar.gz/refs/tags/v1.10.0",
+    "sha256": "537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b",
+    "license": "BSD-2-Clause (library), GPL-2.0-or-later (CLI)"
+  },
+  "erofs-utils": {
+    "version": "1.9.1-1",
+    "architecture": "amd64",
+    "filename": "erofs-utils_1.9.1-1_amd64.deb",
+    "url": "https://archive.ubuntu.com/ubuntu/pool/universe/e/erofs-utils/erofs-utils_1.9.1-1_amd64.deb",
+    "sha256": "e06b009c4e53e6cbb848ac98dd2d1862eaa3daa1a63e4e860e59f482acf616b5",
+    "license": "GPL-2.0-or-later",
+    "use": "Optional read-only snapshot unpacking on amd64 hosts"
+  },
+  "mtools": {
+    "version": "4.0.49-1",
+    "architecture": "amd64",
+    "filename": "mtools_4.0.49-1_amd64.deb",
+    "url": "https://archive.ubuntu.com/ubuntu/pool/main/m/mtools/mtools_4.0.49-1_amd64.deb",
+    "sha256": "28edc5a0eee3f74a15135ec90ae2dee79270931df1d0c6415ab736b7eed46ad3",
+    "license": "GPL-3.0-or-later",
+    "use": "Optional read-only snapshot unpacking on amd64 hosts"
+  },
+  "libdeflate0": {
+    "version": "1.23-2ubuntu1",
+    "architecture": "amd64",
+    "filename": "libdeflate0_1.23-2ubuntu1_amd64.deb",
+    "url": "https://archive.ubuntu.com/ubuntu/pool/main/libd/libdeflate/libdeflate0_1.23-2ubuntu1_amd64.deb",
+    "sha256": "40ee517cffd3730405be6ae30826533bec0ddf8773bb7ac2cccd22a57acafc25",
+    "license": "MIT",
+    "use": "Local runtime dependency of optional fsck.erofs"
+  }
+}

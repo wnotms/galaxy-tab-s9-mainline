@@ -1,0 +1,23 @@
+# 本机验证记录
+
+日期：2026-09-18。目标为 SM-X710、board04 系列，采集设备 revision 6。下面均为主机侧验证；没有刷写或重启平板。
+
+| 检查 | 结果 |
+|---|---|
+| 固定 Linux tag/commit | `v7.2-rc3` / `a13c140cc289c0b7b3770bce5b3ad42ab35074aa` |
+| ARM64 内核与 DTB 编译 | `make bundle` 通过，Clang/LLVM 21.1.8 |
+| 关键内置 Kconfig | 39 项验证通过 |
+| 四个补丁在干净固定源码上顺序应用 | 通过；应用后文件与实际编译源码逐字节一致 |
+| DTB 型号、board ID、S9 USB 初始化 | 通过 |
+| stock 有效固定 carveout 覆盖 | 39 个全部覆盖，主线有效保留区无重叠 |
+| Ultra 专用面板 / Goodix 误导入 | 未发现 |
+| generic / vendor ramdisk | 静态 ARM64 BusyBox；newc 目录验证；两个 legacy LZ4 流解压通过 |
+| 四份 Android v4 启动镜像 | 实机地址与大小匹配，附加 DTB 与 vendor DTB 完全相同 |
+| AVB | AOSP avbtool 验证四份无签名哈希 footer 通过 |
+| Python / shell 检查 | 5 个损坏镜像拒绝测试、构建与 init shell 语法检查通过 |
+| 固件与 vendor 解包 | 3753 个本地文件生成哈希清单；76 个相关资产建立索引 |
+| 设备身份数据进入 Git | 序列号、EFS、persist、完整镜像、日志与固件内容排除 |
+
+构建镜像的输入哈希和结果哈希见 `artifacts/boot-bundle/manifest.json` 与 `SHA256SUMS`；解包文件的哈希见 `artifacts/stock-files/manifest.json`。这些产物均被 Git 忽略，不作为源码分发。
+
+未完成的验证：SM-X710 ABL 接受回退路径、主线冷启动、持久日志跨重启读取、USB 枚举、microSD 读卡、完整 dt-schema 校验。原生显示、触控、S Pen、WLAN、音频、充电及桌面功能仍需移植和实机验证。

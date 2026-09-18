@@ -1,0 +1,32 @@
+{
+  "reference_repository": "https://github.com/agcarbajo/ubuntu-galaxy-tab-s9-ultra",
+  "reference_commit": "32273b0a410b3e73b20a3a2451e24260fb2a36bd",
+  "linux_tag": "v7.2-rc3",
+  "linux_commit": "a13c140cc289c0b7b3770bce5b3ad42ab35074aa",
+  "imports": [
+    {
+      "path": "kernel/patches/add-samsung-sec-log-console.patch",
+      "source_sha256": "8a0d84ca1a2e32c937edca91752379429e42563a3308f1b880381191e6b3bfba",
+      "local_sha256": "3f32be6a0c3a89496778d424e0ceb853b5bfdef0f8a3c03344a56a2a8f68b5be",
+      "adaptation": "Rebased Kconfig/Makefile hunks onto pinned v7.2-rc3; S9 names, unchanged console algorithm"
+    },
+    {
+      "path": "kernel/patches/keep-sec-log-previous-index-current.patch",
+      "source_sha256": "11b21da7037440b0726c40becd7c5165fe00fcd69bf0165904a3b9b6a61512cd",
+      "local_sha256": "89c74a4d98873d84b0edb6d8668f81dc3900c4e8ac6be3cd2f0f4e73e011f607",
+      "adaptation": "S9 compatible/config names"
+    },
+    {
+      "path": "kernel/patches/match-samsung-sm8550-eusb2-phy-init.patch",
+      "source_sha256": "187d3d425c06ce1c1a204e5655457e39c9771457ad6cb2279243aec49a295990",
+      "local_sha256": "187d3d425c06ce1c1a204e5655457e39c9771457ad6cb2279243aec49a295990",
+      "adaptation": "unmodified"
+    },
+    {
+      "path": "kernel/patches/configure-nxp-ptn3222-from-dt.patch",
+      "source_sha256": "80332e96ee5b468b1183e239ff1e8cdf663a688808e6d13b66047767adbbc0b7",
+      "local_sha256": "60d89abdd323fa3d06d2f1f41ee667f6a45069681ca67add26cbea2db195d638",
+      "adaptation": "Added required REGMAP_I2C Kconfig selection: Ultra patch failed to link in a minimal kernel"
+    }
+  ]
+}
