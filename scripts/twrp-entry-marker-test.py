@@ -428,7 +428,7 @@ def classify(m):
     if m.get("platform_waiting_supplier"):
         result += "+WAITING_FOR_SUPPLIER"
     elif m.get("manual_dwc3_defer"):
-        result += "+DWC3_PROBE_DEFER"
+        result += "+DWC3_BIND_DEFERRED"
     if m.get("mount_sysfs_failed"):
         result += "+SYSFS_MOUNT_FAILED"
     elif m.get("mount_proc_failed"):
@@ -482,7 +482,7 @@ def record_interpretation(summary):
         if m.get("platform_waiting_supplier"):
             return "configfs 与 USB gadget 已正常建立，但 a600000.usb 明确处于 waiting_for_supplier=1；dwc3-qcom deferred probe 发生在 supplier 依赖未就绪阶段，应依据 platform_supplier 记录定位未绑定 supplier。"
         if m.get("manual_dwc3_defer"):
-            return "configfs 与 USB gadget 已正常建立，a600000.usb 手动绑定 dwc3-qcom 返回 EAGAIN/EPROBE_DEFER；若 waiting_for_supplier=0，则 deferred probe 更可能来自 dwc3_qcom_probe 或 DWC3 core 内部。"
+            return "configfs 与 USB gadget 已正常建立，a600000.usb 手动绑定 dwc3-qcom 返回 EAGAIN/EPROBE_DEFER；应结合 waiting_for_supplier 与 platform_supplier 的实际 driver 状态，区分 driver-core supplier gating 和 dwc3_qcom_probe/DWC3 core 内部 defer。"
         if m.get("manual_dwc3_bind"):
             return "configfs 与 USB gadget 已正常建立，但等待窗口内没有 UDC；已记录 a600000 platform device、dwc3-qcom 手动 bind 结果和实际 driver binding，应依据这些结果定位 DWC3 probe。"
         return "initramfs 已运行到 USB gadget 配置，但没有在等待窗口内成功绑定任何 UDC；应检查 DWC3/UDC 驱动 probe 与设备树。"
