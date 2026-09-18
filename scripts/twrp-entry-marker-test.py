@@ -36,6 +36,10 @@ STATE_DIR = ROOT / "artifacts/entry-marker-test"
 STATE_FILE = STATE_DIR / "active.json"
 PARTITIONS = ("boot", "init_boot", "vendor_boot", "dtbo")
 MARKERS = ("G9E1301", "G9E1302", "G9E1303", "G9E1304", "G9E1305")
+USB_DIAG_RE = re.compile(
+    r"(?:dwc3|\budc\b|gadget|usb0|\bncm\b|eusb|ptn3222|type-?c|configfs)",
+    re.IGNORECASE,
+)
 
 PATTERNS = {
     "entry_01": re.compile(r"G9E1301"),
@@ -507,6 +511,7 @@ def write_test_record(rd, state, summary):
             "last_kmsg": relative_path(rd / "recovery-after/last_kmsg.txt"),
             "summary_json": relative_path(rd / "recovery-after/summary.json"),
             "summary_txt": relative_path(rd / "recovery-after/summary.txt"),
+            "usb_diagnostics": relative_path(rd / "recovery-after/usb-diagnostics.txt"),
             "pstore": relative_path(rd / "recovery-after/pstore"),
             "device": relative_path(rd / "recovery-after/device.json"),
         },
@@ -665,12 +670,26 @@ def cmd_collect(args):
 
     text = (out / "last_kmsg.txt").read_text(errors="replace")
     m = matches(text)
+
+    usb_diag = []
+    for lineno, line in enumerate(text.splitlines(), 1):
+        if USB_DIAG_RE.search(line):
+            usb_diag.append({"line": lineno, "text": line})
+    usb_diag_lines = [
+        f"L{item['line']}: {item['text']}" for item in usb_diag
+    ]
+    (out / "usb-diagnostics.txt").write_text(
+        "\n".join(usb_diag_lines) + ("\n" if usb_diag_lines else "")
+    )
+
     summary = {
         "collected_utc": now(),
         "deepest_stage": deepest(m),
         "classification": classify(m),
         "pstore_files": pstore,
         "matches": m,
+        "usb_diagnostics_count": len(usb_diag),
+        "usb_diagnostics_tail": usb_diag[-50:],
         "note": "G9E13 markers are emitted only on the expected MMU-off ABL path.",
     }
     save(out / "summary.json", summary)
@@ -685,6 +704,9 @@ def cmd_collect(args):
         lines.append(f"[{key}] count={len(found)}")
         for item in found[-5:]:
             lines.append(f"  L{item['line']}: {item['text']}")
+    lines.append(f"[usb_diagnostics] count={len(usb_diag)}")
+    for item in usb_diag[-20:]:
+        lines.append(f"  L{item['line']}: {item['text']}")
     (out / "summary.txt").write_text("\n".join(lines) + "\n")
 
     state = active(False) or {}
