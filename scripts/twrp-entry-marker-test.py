@@ -81,14 +81,20 @@ PATTERNS = {
     "initramfs_busybox": re.compile(r"GTS9WIFI: initramfs busybox links ready"),
     "initramfs_devtmpfs": re.compile(r"GTS9WIFI: initramfs devtmpfs mounted"),
     "initramfs_pseudo": re.compile(r"GTS9WIFI: initramfs pseudo filesystems ready"),
-    "configfs_mounted": re.compile(r"GTS9WIFI: configfs mounted"),
+    "configfs_mounted": re.compile(r"GTS9WIFI: configfs (?:already )?mounted"),
     "configfs_failed": re.compile(r"GTS9WIFI: configfs mount failed"),
     "gadget_configured": re.compile(r"GTS9WIFI: USB gadget configured"),
+    "gadget_setup_failed": re.compile(r"GTS9WIFI: USB gadget setup failed"),
+    "gadget_skipped": re.compile(r"GTS9WIFI: USB gadget skipped because configfs unavailable"),
+    "udc_test_skipped": re.compile(r"GTS9WIFI: USB UDC test skipped because gadget setup failed"),
     "udc_no_controller": re.compile(r"GTS9WIFI: UDC no controller yet"),
     "udc_candidate": re.compile(r"GTS9WIFI: UDC candidate controller="),
     "udc_bind_success": re.compile(r"GTS9WIFI: UDC bind success controller="),
     "udc_bind_failed": re.compile(r"GTS9WIFI: UDC bind (?:failed|verification failed)"),
     "udc_bind_timeout": re.compile(r"GTS9WIFI: UDC bind timeout"),
+    "udc_class": re.compile(r"GTS9WIFI: UDC class (?:entries=|missing)"),
+    "deferred_probe": re.compile(r"GTS9WIFI: deferred_probe "),
+    "platform_driver": re.compile(r"GTS9WIFI: platform_driver "),
     "usb0_present": re.compile(r"GTS9WIFI: usb0 present"),
     "usb0_missing": re.compile(r"GTS9WIFI: usb0 missing after UDC bind"),
     "usb0_configured": re.compile(r"GTS9WIFI: usb0 configured address="),
@@ -399,7 +405,11 @@ def deepest(m):
 
 def classify(m):
     result = deepest(m)
-    if m.get("udc_bind_timeout"):
+    if m.get("configfs_failed"):
+        result += "+CONFIGFS_MOUNT_FAILED"
+    elif m.get("gadget_setup_failed"):
+        result += "+GADGET_SETUP_FAILED"
+    elif m.get("udc_bind_timeout"):
         result += "+UDC_BIND_TIMEOUT"
     elif m.get("usb_host_timeout"):
         result += "+USB_HOST_ENUM_TIMEOUT"
@@ -424,6 +434,10 @@ def last_match(summary, key):
 
 def record_interpretation(summary):
     m = summary.get("matches", {})
+    if m.get("configfs_failed"):
+        return "initramfs 已进入 USB 配置阶段，但 configfs 挂载失败；本轮不能据此判断 UDC 是否可用，应先修复 configfs mountpoint/挂载路径。"
+    if m.get("gadget_setup_failed"):
+        return "configfs 已可用，但 USB gadget configfs 配置步骤失败；应根据 gadget setup error 继续定位。"
     if m.get("usb_host_configured"):
         return "USB gadget 已绑定 UDC，usb0 已在设备端配置，并且 UDC state 达到 configured；主机已经完成 USB 枚举。"
     if m.get("usb_host_timeout"):
@@ -477,8 +491,10 @@ def write_test_record(rd, state, summary):
         "rdinit_after_exec", "rdinit_exec_success", "rdinit_exec_failed",
         "initramfs_entered", "initramfs_busybox", "initramfs_devtmpfs",
         "initramfs_pseudo", "configfs_mounted", "configfs_failed",
-        "gadget_configured", "udc_no_controller", "udc_candidate",
+        "gadget_configured", "gadget_setup_failed", "gadget_skipped",
+        "udc_test_skipped", "udc_no_controller", "udc_candidate",
         "udc_bind_success", "udc_bind_failed", "udc_bind_timeout",
+        "udc_class", "deferred_probe", "platform_driver",
         "usb0_present", "usb0_missing", "usb0_configured",
         "usb0_config_failed", "telnet_started", "telnet_failed",
         "usb_local_ready", "udc_state", "usb_host_configured",
