@@ -70,8 +70,13 @@ PATTERNS = {
     "freeable_done": re.compile(r"GTS9WIFI: kernel_init_freeable done"),
     "kernel_init_freeable_done": re.compile(r"GTS9WIFI: kernel_init kernel_init_freeable_done"),
     "rdinit_before_exec": re.compile(r"GTS9WIFI: kernel_init before_rdinit_exec"),
+    "rdinit_after_exec": re.compile(r"GTS9WIFI: kernel_init after_rdinit_exec ret="),
+    "rdinit_exec_success": re.compile(r"GTS9WIFI: kernel_init rdinit_exec_success"),
     "rdinit_exec_failed": re.compile(r"GTS9WIFI: kernel_init rdinit_exec_failed"),
     "initramfs_entered": re.compile(r"GTS9WIFI: initramfs init entered"),
+    "initramfs_busybox": re.compile(r"GTS9WIFI: initramfs busybox links ready"),
+    "initramfs_devtmpfs": re.compile(r"GTS9WIFI: initramfs devtmpfs mounted"),
+    "initramfs_pseudo": re.compile(r"GTS9WIFI: initramfs pseudo filesystems ready"),
     "initramfs_ready": re.compile(r"initramfs ready; USB NCM address"),
     "initcall_level": re.compile(r"GTS9WIFI: initcall level .* (?:begin|end)"),
     "initcall_debug": re.compile(r"(?:calling  .* @ |initcall .* returned )"),
@@ -85,7 +90,12 @@ PATTERNS = {
 
 STAGES = (
     ("initramfs_ready", "INITRAMFS_USB_READY"),
+    ("initramfs_pseudo", "INITRAMFS_PSEUDO_FS_READY"),
+    ("initramfs_devtmpfs", "INITRAMFS_DEVTMPFS_MOUNTED"),
+    ("initramfs_busybox", "INITRAMFS_BUSYBOX_LINKS_READY"),
     ("initramfs_entered", "INITRAMFS_INIT_ENTERED"),
+    ("rdinit_exec_success", "KERNEL_RDINIT_EXEC_SUCCESS"),
+    ("rdinit_after_exec", "KERNEL_RDINIT_EXEC_RETURNED"),
     ("rdinit_before_exec", "KERNEL_BEFORE_RDINIT_EXEC"),
     ("kernel_init_freeable_done", "KERNEL_INIT_FREEABLE_RETURNED"),
     ("freeable_done", "KERNEL_INIT_FREEABLE_DONE"),
@@ -161,10 +171,13 @@ def verify_repo():
     if not PATCH.is_file():
         raise RuntimeError("entry-marker patch is missing")
     late_patch = ROOT / "kernel/patches/record-late-boot-checkpoints.patch"
+    exec_patch = ROOT / "kernel/patches/record-rdinit-exec-result.patch"
     if not late_patch.is_file():
         raise RuntimeError("late-boot checkpoint patch is missing")
+    if not exec_patch.is_file():
+        raise RuntimeError("rdinit exec-result patch is missing")
     series = SERIES.read_text().splitlines()
-    for required in (PATCH.name, late_patch.name):
+    for required in (PATCH.name, late_patch.name, exec_patch.name):
         if required not in series:
             raise RuntimeError(required + " is not enabled in series")
     text = PATCH.read_text()
@@ -180,6 +193,12 @@ def verify_repo():
     ):
         if marker not in late_text:
             raise RuntimeError("missing late-boot marker in patch: " + marker)
+    exec_text = exec_patch.read_text()
+    if "kernel_init after_rdinit_exec ret=" not in exec_text:
+        raise RuntimeError("missing rdinit exec-result marker")
+    init_text = (ROOT / "initramfs/init").read_text()
+    if "GTS9WIFI: initramfs init entered" not in init_text:
+        raise RuntimeError("missing earliest initramfs userspace marker")
     config = (ROOT / "kernel/config/gts9wifi-bringup.config").read_text()
     if "CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG=y" not in config:
         raise RuntimeError("persistent sec-log config is required")
