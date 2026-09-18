@@ -129,7 +129,19 @@ def clean_stale_source(enabled):
         return
     marker = src / ".gts9-source"
     if not marker.is_file():
-        raise RuntimeError("unmarked work/kernel-src; move it aside manually")
+        if not enabled:
+            raise RuntimeError(
+                "work/kernel-src is an incomplete/unmarked generated tree; "
+                "rerun build with --clean-source"
+            )
+        # build-kernel.sh creates exactly this directory before patching and
+        # writes .gts9-source only after the entire patch series succeeds.
+        # A failed git apply therefore legitimately leaves an unmarked tree.
+        shutil.rmtree(src)
+        if out.exists():
+            shutil.rmtree(out)
+        print("Removed incomplete generated kernel source/build trees")
+        return
     pin = load(ROOT / "device/sources.json")["linux_commit"]
     expected = f"{pin} {patch_id()}"
     actual = marker.read_text().strip()
