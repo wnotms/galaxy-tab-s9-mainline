@@ -1,0 +1,165 @@
+Subject: [PATCH] arm64: record S9 setup_arch checkpoints in sec_log_buf
+
+Diagnostic scoped by CONFIG and validated flat-DT board/reservation properties.
+
+diff --git a/drivers/soc/qcom/samsung-gts9wifi-sec-log.c b/drivers/soc/qcom/samsung-gts9wifi-sec-log.c
+--- a/drivers/soc/qcom/samsung-gts9wifi-sec-log.c
++++ b/drivers/soc/qcom/samsung-gts9wifi-sec-log.c
+@@ -14,8 +14,11 @@
+ #include <linux/sizes.h>
+ #include <linux/of.h>
+ #include <linux/of_reserved_mem.h>
++#include <linux/of_fdt.h>
++#include <linux/samsung-gts9wifi-sec-log.h>
+ 
+ #include <asm/cacheflush.h>
++#include <asm/early_ioremap.h>
+ 
+ #define SEC_LOG_MAGIC	0x4d474f4c /* "LOGM" on little-endian ARM64 */
+ 
+@@ -35,6 +38,65 @@
+ 
+ static struct gts9wifi_sec_log sec_log_storage;
+ static struct gts9wifi_sec_log *sec_log;
++
++static bool sec_log_early_started __initdata;
++
++static void __init gts9wifi_sec_log_start(struct sec_log_header *header)
++{
++	if (READ_ONCE(header->magic) != SEC_LOG_MAGIC) {
++		WRITE_ONCE(header->boot_count, 0);
++		WRITE_ONCE(header->magic, SEC_LOG_MAGIC);
++	}
++	WRITE_ONCE(header->boot_count, READ_ONCE(header->boot_count) + 1);
++	WRITE_ONCE(header->previous_index, READ_ONCE(header->index));
++	WRITE_ONCE(header->index, 0);
++}
++
++/* Only a single page is needed before normal mappings/allocators exist. */
++void __init gts9wifi_sec_log_early_checkpoint(const char *marker)
++{
++	struct sec_log_header *header;
++	const __be32 *reg;
++	unsigned long root = of_get_flat_dt_root();
++	int parent, node, length;
++	size_t count = strlen(marker);
++	u32 index;
++
++	if (!of_flat_dt_is_compatible(root, "samsung,gts9wifi"))
++		return;
++	parent = of_get_flat_dt_subnode_by_name(root, "reserved-memory");
++	if (parent < 0)
++		return;
++	node = of_get_flat_dt_subnode_by_name(parent, "sec-log@880200000");
++	if (node < 0)
++		return;
++	reg = of_get_flat_dt_prop(node, "reg", &length);
++	if (!reg || length != 4 * sizeof(*reg) ||
++	    be32_to_cpu(reg[0]) != 8 || be32_to_cpu(reg[1]) != 0x80200000 ||
++	    be32_to_cpu(reg[2]) != 0 || be32_to_cpu(reg[3]) != SZ_2M)
++		return;
++
++	header = early_memremap(0x880200000ULL, SZ_4K);
++	if (!header)
++		return;
++	if (!sec_log_early_started)
++		gts9wifi_sec_log_start(header);
++	index = READ_ONCE(header->index);
++	if (index > SZ_4K - sizeof(*header) ||
++	    count > SZ_4K - sizeof(*header) - index)
++		goto unmap;
++
++	memcpy(header->data + index, marker, count);
++	dcache_clean_poc((unsigned long)header->data + index,
++			 (unsigned long)header->data + index + count);
++	WRITE_ONCE(header->index, index + count);
++	WRITE_ONCE(header->previous_index, index + count);
++	dcache_clean_poc((unsigned long)header,
++			 (unsigned long)header + sizeof(*header));
++	sec_log_early_started = true;
++unmap:
++	early_memunmap(header, SZ_4K);
++}
+ 
+ static void notrace gts9wifi_sec_log_write(struct console *console,
+ 					     const char *text,
+@@ -130,15 +192,9 @@
+ 	log->header = memory;
+ 	log->data_size = reserved->size - sizeof(*log->header);
+ 
+-	if (READ_ONCE(log->header->magic) != SEC_LOG_MAGIC) {
+-		WRITE_ONCE(log->header->boot_count, 0);
+-		WRITE_ONCE(log->header->magic, SEC_LOG_MAGIC);
+-	}
+-	WRITE_ONCE(log->header->boot_count,
+-		   READ_ONCE(log->header->boot_count) + 1);
+-	WRITE_ONCE(log->header->previous_index,
+-		   READ_ONCE(log->header->index));
+-	WRITE_ONCE(log->header->index, 0);
++	/* Keep setup_arch checkpoints when handing over to the full console. */
++	if (!sec_log_early_started)
++		gts9wifi_sec_log_start(log->header);
+ 
+ 	strscpy(log->console.name, "sec_log", sizeof(log->console.name));
+ 	log->console.write = gts9wifi_sec_log_write;
+
+diff --git a/arch/arm64/kernel/setup.c b/arch/arm64/kernel/setup.c
+--- a/arch/arm64/kernel/setup.c
++++ b/arch/arm64/kernel/setup.c
+@@ -27,6 +27,7 @@
+ #include <linux/proc_fs.h>
+ #include <linux/memblock.h>
+ #include <linux/of_fdt.h>
++#include <linux/samsung-gts9wifi-sec-log.h>
+ #include <linux/efi.h>
+ #include <linux/psci.h>
+ #include <linux/sched/task.h>
+@@ -290,6 +291,7 @@
+ 	early_ioremap_init();
+ 
+ 	setup_machine_fdt(__fdt_pointer);
++	gts9wifi_sec_log_early_checkpoint("\nGTS9WIFI: setup_arch after_fdt\n");
+ 
+ 	/*
+ 	 * Initialise the static keys early as they may be enabled by the
+@@ -330,8 +332,10 @@
+ 	}
+ 
+ 	arm64_memblock_init();
++	gts9wifi_sec_log_early_checkpoint("GTS9WIFI: setup_arch after_memblock\n");
+ 
+ 	paging_init();
++	gts9wifi_sec_log_early_checkpoint("GTS9WIFI: setup_arch after_paging\n");
+ 
+ 	acpi_table_upgrade();
+ 
+@@ -340,8 +344,10 @@
+ 
+ 	if (acpi_disabled)
+ 		unflatten_device_tree();
++	gts9wifi_sec_log_early_checkpoint("GTS9WIFI: setup_arch after_unflatten\n");
+ 
+ 	bootmem_init();
++	gts9wifi_sec_log_early_checkpoint("GTS9WIFI: setup_arch after_bootmem\n");
+ 
+ 	kasan_init();
+ 
+
+diff --git a/include/linux/samsung-gts9wifi-sec-log.h b/include/linux/samsung-gts9wifi-sec-log.h
+new file mode 100644
+--- /dev/null
++++ b/include/linux/samsung-gts9wifi-sec-log.h
+@@ -0,0 +1,13 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef _LINUX_SAMSUNG_GTS9WIFI_SEC_LOG_H
++#define _LINUX_SAMSUNG_GTS9WIFI_SEC_LOG_H
++
++#include <linux/init.h>
++
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++void __init gts9wifi_sec_log_early_checkpoint(const char *marker);
++#else
++static inline void gts9wifi_sec_log_early_checkpoint(const char *marker) { }
++#endif
++
++#endif

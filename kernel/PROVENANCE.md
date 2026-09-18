@@ -24,6 +24,8 @@
 
 `clean-sec-log-cache-before-reset.patch` 是第五次测试新增的 GPL-2.0-only 本地修改。使用 ARM64 的同步 `dcache_clean_poc` 先清理实际写入的正文片段（包括环形回绕的第二段），再更新 index / previous_index 并清理头部；因此 Kconfig 增加 ARM64 依赖。WB 映射、注册时机、物理保留区及环形格式不变。PoC 清理完成不等于已经证明数据在强制复位后保留；该假设仍需本次实机日志验证。补丁哈希同样记录在 `local_patches`。
 
+`record-sec-log-setup-arch-checkpoints.patch` 是第六次测试新增的 GPL-2.0-only 本地修改，在 ARM64 `setup_arch` 的 FDT、memblock、paging、unflatten 和 bootmem 步骤后调用诊断函数。CONFIG 关闭时为内联空函数；启用时先验证 flat DT 的 S9 compatible 和日志区精确 reg，仅临时映射首个 4 KiB 并同步清理标记正文及头部，然后解除映射。正式 console 接管时保留早期标记和索引，不重复初始化环形缓冲。该方法仍不能观测进入 `setup_arch`、FDT 验证／映射和地址检查之前的故障，也不能单凭缺失标记排除复位保留问题。补丁哈希记录在 `local_patches`。
+
 ## 实机资料
 
 使用用户拥有的 SM-X710，通过 TWRP ADB 只读提取。来源标识、启动固件、分区镜像哈希和所用 overlay 信息记录在 `device/boot-profile.json`；公开的硬件属性记录在 `device/stock-hardware.json`。完整镜像、命令脚本、设备日志、校准及身份数据仅保存在被 Git 忽略的目录中，保留其原有权利，不依据本仓库的 MIT/BSD 许可证再分发。

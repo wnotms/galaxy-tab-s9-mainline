@@ -4,3 +4,4 @@ match-samsung-sm8550-eusb2-phy-init.patch
 configure-nxp-ptn3222-from-dt.patch
 register-sec-log-before-smp.patch
 clean-sec-log-cache-before-reset.patch
+record-sec-log-setup-arch-checkpoints.patch

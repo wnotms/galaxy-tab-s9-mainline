@@ -29,3 +29,5 @@
 第四版新增本地 `register-sec-log-before-smp.patch`，在 `console_initcall` 注册静态持久 console，读取并校验 DT 保留区，写入独立到达标记。全部五个补丁在干净固定源码上应用通过，与实际编译文件逐字节一致；重新构建、四镜像验证器和 `make check` 通过。链接表确认注册函数位于 console initcall 区间；[第四次实机测试](boot-test-20260918-fourth.md)未枚举 USB，持久日志没有新增到达标记、主线 printk 或 initcall 输出，停止位置仍未确认。日志已归档，原四个启动分区已恢复并回读校验。
 
 第五版新增 `clean-sec-log-cache-before-reset.patch`，先清理日志正文到 PoC，再发布 index / previous_index 并清理头部，保留 WB 映射和注册时机。全部六个补丁在干净固定源码上应用通过，与实际编译源码逐字节一致；`make bundle`、四镜像检查和 `make check` 通过，目标文件包含正文首段、回绕第二段及头部的三处缓存清理调用重定位。[第五次实机测试](boot-test-20260918-fifth.md)未枚举 USB，持久日志仍没有 console 标记、主线 printk 或 initcall 跟踪；缓存清理路径是否执行、停止位置和复位保留行为均未确认。日志已归档，原四个启动分区已恢复并回读校验。
+
+第六版新增 `record-sec-log-setup-arch-checkpoints.patch`，在五个架构初始化步骤后通过受 flat DT 检查保护的 4 KiB 临时映射写入标记，并在正式 console 接管时保留早期索引。全部七个补丁在干净固定源码上应用通过，与实际编译源码逐字节一致；`make bundle`、四镜像检查和 `make check` 通过，setup.o 包含五处 early_checkpoint 调用重定位，正式 console 初始化仍在 console initcall 区间。[第六次实机测试](boot-test-20260918-sixth.md)已写入重启，日志及恢复待完成。
