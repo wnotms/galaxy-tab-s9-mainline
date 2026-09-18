@@ -472,6 +472,8 @@ def last_match(summary, key):
 
 def record_interpretation(summary):
     m = summary.get("matches", {})
+    if not m.get("linux") and m.get("uefi_end"):
+        return "ABL 已完成正常启动路径并到达 ExitBootServices，但本轮没有任何 mainline Linux marker；该结果尚未执行到内核配置/RPMh/USB 修复验证阶段。由于本机此前存在同一镜像可复现性波动，应优先原样重放完全相同的 tested bundle，再决定是否归因于新内核。"
     if m.get("mount_sysfs_failed"):
         return "initramfs 用户态已进入，但 sysfs 挂载失败；configfs 与 UDC 结果在该前提下不具备诊断意义，应先定位 sysfs mount 失败的返回码与错误信息。"
     if m.get("mount_proc_failed"):
@@ -744,10 +746,16 @@ def cmd_collect(args):
     text = (out / "last_kmsg.txt").read_text(errors="replace")
     m = matches(text)
 
+    # last_kmsg may also contain Samsung/TWRP recovery kernel text. USB
+    # diagnostics are meaningful only after this run has produced a mainline
+    # Linux banner; otherwise Android recovery's msm-dwc3 lines are pollution.
     usb_diag = []
-    for lineno, line in enumerate(text.splitlines(), 1):
-        if USB_DIAG_RE.search(line):
-            usb_diag.append({"line": lineno, "text": line})
+    linux_start = None
+    if m.get("linux"):
+        linux_start = m["linux"][0]["line"]
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if lineno >= linux_start and USB_DIAG_RE.search(line):
+                usb_diag.append({"line": lineno, "text": line})
     usb_diag_lines = [
         f"L{item['line']}: {item['text']}" for item in usb_diag
     ]
@@ -763,6 +771,10 @@ def cmd_collect(args):
         "matches": m,
         "usb_diagnostics_count": len(usb_diag),
         "usb_diagnostics_tail": usb_diag[-50:],
+        "usb_diagnostics_scope": (
+            f"mainline-from-line-{linux_start}" if linux_start is not None
+            else "suppressed-no-mainline-linux-marker"
+        ),
         "note": "G9E13 markers are emitted only on the expected MMU-off ABL path.",
     }
     save(out / "summary.json", summary)
@@ -770,6 +782,7 @@ def cmd_collect(args):
         "deepest_stage: " + summary["deepest_stage"],
         "classification: " + summary["classification"],
         "pstore files: " + str(len(pstore)),
+        "usb diagnostics scope: " + summary["usb_diagnostics_scope"],
         "",
     ]
     for key in PATTERNS:
