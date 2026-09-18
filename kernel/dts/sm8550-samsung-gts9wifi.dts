@@ -25,16 +25,25 @@
  chosen { stdout-path = "serial0:115200n8"; };
 	reserved-memory {
 		/*
-		 * Samsung ABL patches the /memory ranges. Keep the board's protected
-		 * carveouts out of the buddy allocator even without the stock overlay:
-		 * touching one of these ranges
+		 * Samsung ABL patches the /memory ranges but, without the stock
+		 * overlay, does not add the board-only protected carveouts below.
+		 * Keep them out of the buddy allocator: touching one of these ranges
 		 * can make the secure firmware reset the SoC with a fatal NoC error.
 		 */
-		/* ABL adds kaslr_region, uh_heap_region and uh_guest_region.
-		 * Leave those names and ranges absent here: alternate names caused
-		 * overlapping reservations in test one, matching names caused ABL
-		 * add failures in test two. Verify ABL's reservations on each boot.
-		 */
+		kaslr_mem: kaslr@b01ff000 {
+			reg = <0x0 0xb01ff000 0x0 0x1000>;
+			no-map;
+		};
+
+		uh_heap_mem: uh-heap@b0200000 {
+			reg = <0x0 0xb0200000 0x0 0x40000>;
+			no-map;
+		};
+
+		uh_guest_mem: uh-guest@b1000000 {
+			reg = <0x0 0xb1000000 0x0 0x3600000>;
+			no-map;
+		};
 
 		chipinfo_mem: chipinfo@81cf4000 {
 			reg = <0x0 0x81cf4000 0x0 0x1000>;

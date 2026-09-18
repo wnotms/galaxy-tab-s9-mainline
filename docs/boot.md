@@ -61,3 +61,5 @@ make check
 验证器检查实际打包的 DTB、两份 DTB 一致性、S9 carveout 覆盖及无重叠、Android v4 地址和尺寸、平台 ramdisk 表、legacy LZ4 解压和四份 AVB 哈希。未运行完整的 `dtbs_check` binding schema 校验；当前 DTS 的三星选择属性和补丁中的 repeater 属性仍是实验接口。
 
 四分区恢复脚本及 microSD 恢复包使用方法见 [TWRP 恢复说明](twrp-restore.md)。
+
+第八次测试使用 [固定的首次 DTB](boot-test-20260918-eighth.md)，保留旧 no-map 区域，构建强制检查二进制哈希。此时输入仍无重叠，但 ABL 可能增加同范围节点；不能套用现代布局的 --abl-updated 检查或认定固件 NoC 已解决。

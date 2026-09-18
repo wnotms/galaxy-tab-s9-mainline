@@ -44,5 +44,13 @@ cp "$OUT/arch/arm64/boot/Image" artifacts/kernel/
 cp "$OUT/arch/arm64/boot/dts/qcom/sm8550-samsung-gts9wifi.dtb" artifacts/kernel/
 cp "$OUT/.config" artifacts/kernel/config
 python3 scripts/check-device-tree.py artifacts/kernel/sm8550-samsung-gts9wifi.dtb
+python3 - <<'DTB_PIN_CHECK'
+import hashlib,json,pathlib
+baseline=json.loads(pathlib.Path('device/firmware-dtb-baseline.json').read_text())
+dtb=pathlib.Path('artifacts/kernel/sm8550-samsung-gts9wifi.dtb').read_bytes()
+if len(dtb)!=baseline['size'] or hashlib.sha256(dtb).hexdigest()!=baseline['sha256']:
+ raise SystemExit('Firmware-facing DTB differs from the first boot-confirmed binary layout')
+print('Firmware-facing DTB matches first boot-confirmed binary byte for byte')
+DTB_PIN_CHECK
 sha256sum artifacts/kernel/Image artifacts/kernel/sm8550-samsung-gts9wifi.dtb artifacts/kernel/config > artifacts/kernel/SHA256SUMS
 echo 'Kernel and DTB: artifacts/kernel/'

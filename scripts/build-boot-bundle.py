@@ -2,8 +2,7 @@
 # SPDX-License-Identifier: MIT
 """Package a mainline bring-up kernel using the owner's Android v4 geometry.
 
-Based on the S9 Ultra appended-DTB fallback. This bootloader route has NOT
-been tested on SM-X710. This script only creates local files.
+Based on the S9 Ultra appended-DTB fallback. The first SM-X710 test reached the kernel; full boot remains unvalidated. This script only creates local files.
 """
 import argparse
 import gzip
@@ -84,6 +83,8 @@ def main():
     report = dict(model="SM-X710", profile="board04", hardware_boot_tested=False,
                   bootloader_route="Experimental Ultra appended-DTB fallback; invalid DT-table payload",
                   vbmeta="Not generated or modified; owner's captured vbmeta has verification-disabled flag 2",
+                  firmware_dtb_sha256=hashlib.sha256(dtb).hexdigest(),
+                  firmware_dtb_policy='Exact first S9 boot-confirmed DTB; retains legacy no-map reservations',
                   source_pin=json.loads((ROOT/"device/sources.json").read_text())["linux_commit"],
                   inputs={str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in (args.kernel,args.dtb,args.initramfs)},
                   files={name+'.img':dict(size=(args.output/(name+'.img')).stat().st_size,sha256=hashlib.sha256((args.output/(name+'.img')).read_bytes()).hexdigest()) for name in blobs})

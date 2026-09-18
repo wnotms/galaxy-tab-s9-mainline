@@ -1,0 +1,28 @@
+{
+  "sha256": "26d173d871ce9f9fa7fa95c6cd4918a3a797eee3abf85ab89c66b84b4c35e0c8",
+  "size": 116814,
+  "dts_source_commit": "ef83018",
+  "linux_commit": "a13c140cc289c0b7b3770bce5b3ad42ab35074aa",
+  "evidence": "First SM-X710 trial reached Linux, eight CPUs and initramfs unpack before firmware NoC fatal; not a complete boot",
+  "reference_strategy": "Ultra build-mainline-kernel.sh pins firmware-facing DTB structure; retain first S9 binary layout for controlled test",
+  "legacy_reservations": {
+    "kaslr@b01ff000": [
+      0,
+      2954883072,
+      0,
+      4096
+    ],
+    "uh-heap@b0200000": [
+      0,
+      2954887168,
+      0,
+      262144
+    ],
+    "uh-guest@b1000000": [
+      0,
+      2969567232,
+      0,
+      56623104
+    ]
+  }
+}

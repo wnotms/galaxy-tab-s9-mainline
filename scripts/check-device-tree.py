@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check S9 identities and critical snapshot-derived values in the final DTB."""
 import argparse
+import hashlib
 import json
 import runpy
 import struct
@@ -30,6 +31,21 @@ abl_reservations = {
     "uh_heap_region": (0,0xb0200000,0,0x40000),
     "uh_guest_region": (0,0xb1000000,0,0x3600000),
 }
+# An exact historical DTB is permitted for the controlled firmware-layout trial.
+# This never permits arbitrary legacy trees or removes protected-range checks.
+baseline = json.loads((Path(__file__).resolve().parent.parent /
+                       'device/firmware-dtb-baseline.json').read_text())
+legacy_paths = ['/reserved-memory/' + name for name in baseline['legacy_reservations']]
+legacy = any(path in nodes for path in legacy_paths)
+if legacy:
+    require(not args.abl_updated, 'Legacy baseline: ABL duplicate reservations require separate runtime review')
+    require(hashlib.sha256(args.dtb.read_bytes()).hexdigest() == baseline['sha256'],
+            'Legacy reservation layout requires the exact first boot-confirmed DTB')
+    for name, expected in baseline['legacy_reservations'].items():
+        path = '/reserved-memory/' + name
+        require(path in nodes and cells(nodes[path]['reg']) == tuple(expected),
+                'Wrong pinned legacy reservation: ' + name)
+        require('no-map' in nodes[path], 'Pinned protected legacy range must remain no-map: ' + name)
 for name, expected in abl_reservations.items():
     path = "/reserved-memory/" + name
     if args.abl_updated:
@@ -48,7 +64,7 @@ for path, properties in nodes.items():
         if properties.get('status') != b'disabled\0':
             ranges.append(((a<<32)+b, (c<<32)+d, path))
 ranges.sort()
-if not args.abl_updated:
+if not args.abl_updated and not legacy:
     for name, (a,b,c,d) in abl_reservations.items():
         start=(a<<32)+b; length=(c<<32)+d
         require(not any(begin < start+length and start < begin+size for begin,size,_ in ranges), "Input DTB already reserves ABL range: " + name)
@@ -64,4 +80,6 @@ for path, properties in json.loads(stock_path.read_text())['nodes'].items():
         continue
     require(any(begin<=start and begin+length>=start+size for begin,length,_ in ranges), 'Unprotected stock carveout: '+path)
     covered += 1
-print(f"Verified S9 identity, USB parameters, {covered} stock carveouts, no reservation overlap and no Ultra panel/touch; ABL reservations {'present' if args.abl_updated else 'deferred to bootloader'}")
+if legacy:
+    print('Pinned first boot-confirmed firmware DTB: legacy ranges retained no-map; ABL may add exact duplicates')
+print(f"Verified S9 identity, USB parameters, {covered} stock carveouts, no reservation overlap and no Ultra panel/touch; ABL reservations {'present' if args.abl_updated else 'legacy baseline, firmware duplicates expected' if legacy else 'deferred to bootloader'}")
