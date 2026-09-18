@@ -37,7 +37,9 @@ STATE_FILE = STATE_DIR / "active.json"
 PARTITIONS = ("boot", "init_boot", "vendor_boot", "dtbo")
 MARKERS = ("G9E1301", "G9E1302", "G9E1303", "G9E1304", "G9E1305")
 USB_DIAG_RE = re.compile(
-    r"(?:dwc3|\budc\b|gadget|usb0|\bncm\b|eusb|ptn3222|type-?c|configfs)",
+    r"(?:dwc3|\budc\b|gadget|usb0|\bncm\b|eusb|ptn3222|type-?c|configfs|"
+    r"GTS9WIFI: mount |GTS9WIFI: filesystem |GTS9WIFI: initramfs pseudo|"
+    r"GTS9WIFI: mount table)",
     re.IGNORECASE,
 )
 
@@ -79,10 +81,22 @@ PATTERNS = {
     "rdinit_exec_failed": re.compile(r"GTS9WIFI: kernel_init rdinit_exec_failed"),
     "initramfs_entered": re.compile(r"GTS9WIFI: initramfs init entered"),
     "initramfs_busybox": re.compile(r"GTS9WIFI: initramfs busybox links ready"),
-    "initramfs_devtmpfs": re.compile(r"GTS9WIFI: initramfs devtmpfs mounted"),
+    "initramfs_devtmpfs": re.compile(r"GTS9WIFI: (?:initramfs devtmpfs mounted|mount devtmpfs success)"),
+    "mount_devtmpfs_failed": re.compile(r"GTS9WIFI: mount devtmpfs failed"),
+    "mount_proc_success": re.compile(r"GTS9WIFI: mount proc success"),
+    "mount_proc_failed": re.compile(r"GTS9WIFI: mount proc failed"),
+    "mount_sysfs_success": re.compile(r"GTS9WIFI: mount sysfs success"),
+    "mount_sysfs_failed": re.compile(r"GTS9WIFI: mount sysfs failed"),
+    "mount_devpts_failed": re.compile(r"GTS9WIFI: mount devpts failed"),
+    "mount_run_failed": re.compile(r"GTS9WIFI: mount run_tmpfs failed"),
+    "mount_tmp_failed": re.compile(r"GTS9WIFI: mount tmp_tmpfs failed"),
     "initramfs_pseudo": re.compile(r"GTS9WIFI: initramfs pseudo filesystems ready"),
-    "configfs_mounted": re.compile(r"GTS9WIFI: configfs (?:already )?mounted"),
-    "configfs_failed": re.compile(r"GTS9WIFI: configfs mount failed"),
+    "initramfs_pseudo_incomplete": re.compile(r"GTS9WIFI: initramfs pseudo filesystems incomplete"),
+    "filesystem_configfs": re.compile(r"GTS9WIFI: filesystem (?:available|missing) name=configfs"),
+    "configfs_mountpoint": re.compile(r"GTS9WIFI: configfs mountpoint "),
+    "configfs_primary_failed": re.compile(r"GTS9WIFI: configfs primary mount failed"),
+    "configfs_mounted": re.compile(r"GTS9WIFI: configfs (?:already mounted|mounted|fallback mounted)"),
+    "configfs_failed": re.compile(r"GTS9WIFI: configfs (?:mount failed|fallback mount failed)"),
     "gadget_configured": re.compile(r"GTS9WIFI: USB gadget configured"),
     "gadget_setup_failed": re.compile(r"GTS9WIFI: USB gadget setup failed"),
     "gadget_skipped": re.compile(r"GTS9WIFI: USB gadget skipped because configfs unavailable"),
@@ -405,7 +419,15 @@ def deepest(m):
 
 def classify(m):
     result = deepest(m)
-    if m.get("configfs_failed"):
+    if m.get("mount_sysfs_failed"):
+        result += "+SYSFS_MOUNT_FAILED"
+    elif m.get("mount_proc_failed"):
+        result += "+PROC_MOUNT_FAILED"
+    elif m.get("mount_devtmpfs_failed"):
+        result += "+DEVTMPFS_MOUNT_FAILED"
+    elif m.get("initramfs_pseudo_incomplete"):
+        result += "+PSEUDO_FS_INCOMPLETE"
+    elif m.get("configfs_failed"):
         result += "+CONFIGFS_MOUNT_FAILED"
     elif m.get("gadget_setup_failed"):
         result += "+GADGET_SETUP_FAILED"
@@ -434,8 +456,12 @@ def last_match(summary, key):
 
 def record_interpretation(summary):
     m = summary.get("matches", {})
+    if m.get("mount_sysfs_failed"):
+        return "initramfs 用户态已进入，但 sysfs 挂载失败；configfs 与 UDC 结果在该前提下不具备诊断意义，应先定位 sysfs mount 失败的返回码与错误信息。"
+    if m.get("mount_proc_failed"):
+        return "initramfs 用户态已进入，但 procfs 挂载失败；应先修复基础伪文件系统挂载，再继续 USB/configfs 诊断。"
     if m.get("configfs_failed"):
-        return "initramfs 已进入 USB 配置阶段，但 configfs 挂载失败；本轮不能据此判断 UDC 是否可用，应先修复 configfs mountpoint/挂载路径。"
+        return "基础挂载已进入 configfs 阶段，但 configfs 在主路径和 fallback 路径上均未成功挂载；应结合 mount rc、stderr 与 /proc/filesystems 判断失败原因。"
     if m.get("gadget_setup_failed"):
         return "configfs 已可用，但 USB gadget configfs 配置步骤失败；应根据 gadget setup error 继续定位。"
     if m.get("usb_host_configured"):
@@ -490,7 +516,12 @@ def write_test_record(rd, state, summary):
         "basic_after", "rdinit_access", "rdinit_before_exec",
         "rdinit_after_exec", "rdinit_exec_success", "rdinit_exec_failed",
         "initramfs_entered", "initramfs_busybox", "initramfs_devtmpfs",
-        "initramfs_pseudo", "configfs_mounted", "configfs_failed",
+        "mount_devtmpfs_failed", "mount_proc_success", "mount_proc_failed",
+        "mount_sysfs_success", "mount_sysfs_failed", "mount_devpts_failed",
+        "mount_run_failed", "mount_tmp_failed", "initramfs_pseudo",
+        "initramfs_pseudo_incomplete", "filesystem_configfs",
+        "configfs_mountpoint", "configfs_primary_failed",
+        "configfs_mounted", "configfs_failed",
         "gadget_configured", "gadget_setup_failed", "gadget_skipped",
         "udc_test_skipped", "udc_no_controller", "udc_candidate",
         "udc_bind_success", "udc_bind_failed", "udc_bind_timeout",
