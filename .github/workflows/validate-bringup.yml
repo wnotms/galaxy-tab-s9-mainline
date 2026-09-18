@@ -17,12 +17,25 @@ on:
       - ".github/workflows/validate-bringup.yml"
   workflow_dispatch:
 
+# Multi-file bring-up changes are often committed in a short sequence. Keep
+# only the newest validation for a ref so transient intermediate states do not
+# generate a cascade of failed runs and notification emails.
+concurrency:
+  group: validate-bringup-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+
     steps:
+      - name: Coalesce rapid push updates
+        if: github.event_name == 'push'
+        run: sleep 20
+
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Run bring-up preflight
         run: python3 scripts/check-bringup.py
