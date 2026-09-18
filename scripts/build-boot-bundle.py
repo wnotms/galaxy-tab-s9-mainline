@@ -16,7 +16,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 PAGE = 4096
-CMDLINE = "rdinit=/init console=null loglevel=8 ignore_loglevel printk.devkmsg=on clk_ignore_unused pd_ignore_unused regulator_ignore_unused panic=0 bootconfig"
+CMDLINE = "rdinit=/init console=null loglevel=8 ignore_loglevel initcall_debug printk.devkmsg=on clk_ignore_unused pd_ignore_unused regulator_ignore_unused panic=0 bootconfig"
 def padded(data, page=PAGE):
     return data + b"\0" * (-len(data) % page)
 def boot_v4(kernel=b"", ramdisk=b"", os_version=0):

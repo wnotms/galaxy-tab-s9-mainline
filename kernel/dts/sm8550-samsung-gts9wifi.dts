@@ -25,22 +25,25 @@
  chosen { stdout-path = "serial0:115200n8"; };
 	reserved-memory {
 		/*
-		 * Samsung ABL patches the /memory ranges but, without the stock
-		 * overlay, does not add the board-only protected carveouts below.
-		 * Keep them out of the buddy allocator: touching one of these ranges
+		 * Samsung ABL patches the /memory ranges. Keep the board's protected
+		 * carveouts out of the buddy allocator even without the stock overlay:
+		 * touching one of these ranges
 		 * can make the secure firmware reset the SoC with a fatal NoC error.
 		 */
-		kaslr_mem: kaslr@b01ff000 {
+		/* ABL updates these exact names. Reuse them to avoid duplicate
+		 * reservations observed during the first SM-X710 boot attempt.
+		 */
+		kaslr_mem: kaslr_region {
 			reg = <0x0 0xb01ff000 0x0 0x1000>;
 			no-map;
 		};
 
-		uh_heap_mem: uh-heap@b0200000 {
+		uh_heap_mem: uh_heap_region {
 			reg = <0x0 0xb0200000 0x0 0x40000>;
 			no-map;
 		};
 
-		uh_guest_mem: uh-guest@b1000000 {
+		uh_guest_mem: uh_guest_region {
 			reg = <0x0 0xb1000000 0x0 0x3600000>;
 			no-map;
 		};

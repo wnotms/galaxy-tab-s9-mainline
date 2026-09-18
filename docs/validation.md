@@ -9,7 +9,7 @@
 | 关键内置 Kconfig | 39 项验证通过 |
 | 四个补丁在干净固定源码上顺序应用 | 通过；应用后文件与实际编译源码逐字节一致 |
 | DTB 型号、board ID、S9 USB 初始化 | 通过 |
-| stock 有效固定 carveout 覆盖 | 39 个全部覆盖，主线有效保留区无重叠 |
+| stock 有效固定 carveout 覆盖 | 39 个全部覆盖，输入 DTB 保留区无重叠；首次实机发现 ABL 添加重复节点，后续诊断版已调整节点名称 |
 | Ultra 专用面板 / Goodix 误导入 | 未发现 |
 | generic / vendor ramdisk | 静态 ARM64 BusyBox；newc 目录验证；两个 legacy LZ4 流解压通过 |
 | 四份 Android v4 启动镜像 | 实机地址与大小匹配，附加 DTB 与 vendor DTB 完全相同 |
@@ -20,4 +20,6 @@
 
 构建镜像的输入哈希和结果哈希见 `artifacts/boot-bundle/manifest.json` 与 `SHA256SUMS`；解包文件的哈希见 `artifacts/stock-files/manifest.json`。这些产物均被 Git 忽略，不作为源码分发。
 
-未完成的验证：SM-X710 ABL 接受回退路径、主线冷启动、持久日志跨重启读取、USB 枚举、microSD 读卡、完整 dt-schema 校验。原生显示、触控、S Pen、WLAN、音频、充电及桌面功能仍需移植和实机验证。
+首次重启已验证 SM-X710 ABL 交接主线内核、8 个 CPU 启动、initramfs 解包、持久日志跨重启读取，以及四个启动分区恢复与回读。内核约 31 毫秒后发生固件 NoC 致命错误，用户态和 USB 枚举未通过。保留区节点名称修正及 `initcall_debug` 诊断版已重新构建、离线校验，尚未刷入。
+
+未完成的验证：新版 ABL 修补后的有效 DTB、完整主线启动、USB 枚举、microSD 读卡、完整 dt-schema 校验。原生显示、触控、S Pen、WLAN、音频、充电及桌面功能仍需移植和实机验证。

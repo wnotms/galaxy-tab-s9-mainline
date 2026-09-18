@@ -20,7 +20,14 @@ require(cells(nodes['/clocks/xo-board']['clock-frequency']) == (76800000,), 'Wro
 repeaters = [p for p in nodes.values() if p.get("compatible") == b"nxp,ptn3222\0"]
 require(len(repeaters) == 1, "Expected exactly one S9 repeater")
 require(cells(repeaters[0]["qcom,param-override-seq"]) == (0x20,6,0x21,7,0x63,8,3,9,1,10), "Wrong S9 repeater sequence")
-require(cells(nodes["/reserved-memory/uh-guest@b1000000"]["reg"]) == (0,0xb1000000,0,0x3600000), "Wrong S9 UH carveout")
+for name, expected in {
+    "kaslr_region": (0,0xb01ff000,0,0x1000),
+    "uh_heap_region": (0,0xb0200000,0,0x40000),
+    "uh_guest_region": (0,0xb1000000,0,0x3600000),
+}.items():
+    path = "/reserved-memory/" + name
+    require(path in nodes, "Missing ABL reservation name: " + name)
+    require(cells(nodes[path]["reg"]) == expected, "Wrong ABL reservation: " + name)
 require(cells(nodes["/reserved-memory/sec-log@880200000"]["reg"]) == (8,0x80200000,0,0x200000), "Wrong sec_log carveout")
 require(cells(nodes["/reserved-memory/adspslpi@9ea00000"]["reg"]) == (0,0x9ea00000,0,0x59b4000), "Wrong ADSP carveout")
 require(nodes["/soc@0/usb@a600000"]["dr_mode"] == b"peripheral\0", "USB is not peripheral")

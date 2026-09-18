@@ -2,7 +2,7 @@
 
 面向 **Samsung Galaxy Tab S9 Wi-Fi / SM-X710 / gts9wifi** 的独立移植仓库。基于 [S9 Ultra 项目](https://github.com/agcarbajo/ubuntu-galaxy-tab-s9-ultra)的启动经验，使用本机通过 TWRP 提取的分区和设备树建立 S9 板级配置。
 
-当前是**可构建的启动调试基线**：主线内核、独立 S9 DTB、RAM 中运行的 USB 网络诊断环境，以及 Android v4 启动镜像生成工具。**已完成首次实机写入和重启，但未观察到 USB 枚举，主线启动尚未确认。屏幕和触控尚未实现，不能作为可用的 Ubuntu 桌面系统。** 见 [首次启动记录](docs/boot-test-20260918.md)。
+当前是**可构建的启动调试基线**：主线内核、独立 S9 DTB、RAM 中运行的 USB 网络诊断环境，以及 Android v4 启动镜像生成工具。**首次实机日志确认主线内核执行、8 个 CPU 启动及 initramfs 解包；约 31 毫秒后固件报告 NoC 致命错误，尚未进入 USB 诊断环境。原启动分区已恢复，设备留在 TWRP。屏幕和触控尚未实现，不能作为可用的 Ubuntu 桌面系统。** 见 [首次启动记录](docs/boot-test-20260918.md)。
 
 ## 当前内容
 
@@ -10,7 +10,7 @@
 |---|---|
 | Linux `v7.2-rc3`、Clang/LLVM ARM64 构建 | 已完成本机编译 |
 | S9 DTS：board `04`，覆盖实机 revision `6` | 已生成 DTB 并校验 |
-| Samsung 保留内存与持久内核日志 | 地址来自提取资料；日志写入效果待实测 |
+| Samsung 保留内存与持久内核日志 | 已从 TWRP 回收主线日志；修正 ABL 重复节点的新版尚未实测 |
 | eUSB2、NXP PTN3222、USB2 peripheral / NCM | 驱动已编入，枚举待实测 |
 | microSD / ext4 | 驱动已编入；当前 initramfs 不自动挂载 SD |
 | Android v4 的四个启动镜像 | 离线检查、实机写入及回读通过；首次重启未枚举 USB |
@@ -80,6 +80,6 @@ python3 scripts/stage-stock-files.py "$SNAP" --vendor
 
 ## 后续移植
 
-先验证 ABL 能交接主线内核、TWRP 能读取持久日志、USB NCM 能枚举；随后测试 SD，再适配显示与输入。S9 与 Ultra 的差异、实机映射和具体推进顺序见 [硬件说明](docs/hardware.md)及 [完整移植方案](PORTING_PLAN.zh-CN.md)。
+ABL 交接主线内核及 TWRP 回收持久日志已验证；下一步利用 `initcall_debug` 定位早期 NoC 故障，再验证 USB NCM、SD，随后适配显示与输入。S9 与 Ultra 的差异、实机映射和具体推进顺序见 [硬件说明](docs/hardware.md)及 [完整移植方案](PORTING_PLAN.zh-CN.md)。
 
 本次检查结果见 [验证记录](docs/validation.md)。来源、补丁调整和许可证见 [kernel/PROVENANCE.md](kernel/PROVENANCE.md)与 [LICENSE](LICENSE)。Linux 源码和工具缓存不提交到此仓库；默认分支为 `main`。
