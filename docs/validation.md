@@ -32,4 +32,4 @@
 
 第六版新增 `record-sec-log-setup-arch-checkpoints.patch`，在五个架构初始化步骤后通过受 flat DT 检查保护的 4 KiB 临时映射写入标记，并在正式 console 接管时保留早期索引。全部七个补丁在干净固定源码上应用通过，与实际编译源码逐字节一致；`make bundle`、四镜像检查和 `make check` 通过，setup.o 包含五处 early_checkpoint 调用重定位，正式 console 初始化仍在 console initcall 区间。[第六次实机测试](boot-test-20260918-sixth.md)仍未枚举 USB，五个早期标记和主线输出均未取得；过滤、映射、写入、停止位置及复位保留行为仍未确认。日志已归档，原四个启动分区已恢复并回读校验。
 
-第七版增加精确保留区 reg 搜索及根 compatible 结果记录；八个补丁的干净应用、构建、四镜像校验及 `make check` 通过。新增恢复脚本的实机 --check 和缺失备份拒绝检查通过。四个试验镜像已写入、回读并重启，recovery / vbmeta 未改变；Windows 未观察到 USB 枚举，正在等待 TWRP 回收日志及恢复。详见 [第七次测试](boot-test-20260918-seventh.md)。
+第七版增加精确保留区 reg 搜索及根 compatible 结果记录；八个补丁的干净应用、构建、四镜像校验及 `make check` 通过。新增恢复脚本的实机 --check 和缺失备份拒绝检查通过。四个试验镜像已写入、回读并重启，recovery / vbmeta 未改变；Windows 未观察到 USB 枚举，回收日志没有 compatible 诊断或五个早期标记，完整启动未通过。microSD 挂载完成后，独立 TWRP 脚本已实际恢复四个原分区，回读匹配，recovery / vbmeta 保持不变，设备留在 TWRP。详见 [第七次测试](boot-test-20260918-seventh.md)。

@@ -19,6 +19,14 @@ c23fff2ebadab9ecd9e8eef73587e39d7bed48694f9f7a703dbe1a0c6ec5bcbc  vendor_boot.im
 c17418be08365c03a5ce3a220af734b14ec2e6b03c0cbc1ed9721be6f21d3ef3  dtbo.img
 ```
 
-## 当前状态
+## 实机结果
 
-恢复包的实机只读校验通过，缺失备份的 --restore 测试在写入前拒绝。机型、固件、AVB flags 2、当前原分区和四个恢复备份预检通过。四个镜像已写入并逐个回读核对，recovery / vbmeta 保持不变，已请求正常重启。Windows 未观察到 Linux / Samsung USB 设备、新网卡或 ADB。已提示返回 TWRP；目前实验镜像仍在四个启动分区，日志尚未回收，原四分区尚未恢复。缺失 USB 枚举不能单独证明内核未执行。
+恢复包的实机只读校验通过，缺失备份的 --restore 测试在写入前拒绝。机型、固件、AVB flags 2、当前原分区和四个恢复备份预检通过。四个镜像已写入并逐个回读核对，recovery / vbmeta 保持不变，已请求正常重启。Windows 未观察到 Linux / Samsung USB 设备、新网卡或 ADB。用户返回 TWRP 后，已保存 last_kmsg、dmesg、recovery 日志、pstore 列表和分区哈希；pstore 为空；没有另行取得本次屏幕状态确认。
+
+`last_kmsg` 为 2097136 字节，SHA256 为 `9eca7270cebf1208ae95bba46c41afa76a251ce0fd2c0c1540f832a00c0af095`。实验启动的 ABL cmdline 含 `rdinit=/init` 和 `initcall_debug`，DT 更新为 5586349 微秒、UEFI Exit EBS 为 5741777 微秒。没有三处保留区添加／保留错误，也没有首次的 NoC 致命错误标记。
+
+**本次启动验证未通过。** `flat_dt compatible=yes/no range=validated`、五个 setup_arch 检查点、正式 console 标记和主线内核版本均未取得。取消名称和 compatible 阻断条件没有带来可观察的日志，仍不能确定精确 reg 匹配、临时映射、写入路径是否执行及复位保留行为；不能据此断言内核未进入 setup_arch。实际 ABL 修补后的 DTB 和固件复位原因仍未知。
+
+## 恢复验证
+
+首次运行恢复脚本时 TWRP 尚未完成 microSD 挂载，脚本路径不可访问，未执行写入。挂载完成后重新运行 microSD 恢复包的 `--restore`，四个原分区全部写入、同步并完整回读 SHA256 匹配，recovery / vbmeta 的前后哈希一致。未自动重启，设备留在 TWRP。恢复输出及最终核对记录在 `restore/`。
