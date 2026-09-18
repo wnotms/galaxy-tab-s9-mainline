@@ -583,7 +583,7 @@ def write_test_record(rd, state, summary):
 def cmd_build(args):
     verify_repo()
     subprocess.run(
-        [sys.executable, str(ROOT / "scripts/check-patch-series.py")],
+        [sys.executable, str(ROOT / "scripts/check-bringup.py")],
         cwd=ROOT, check=True,
     )
     clean_stale_source(args.clean_source)
