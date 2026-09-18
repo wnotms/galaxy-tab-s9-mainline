@@ -1,0 +1,380 @@
+Subject: [PATCH] init: trace SM-X710 late boot through rdinit
+
+Once the SM-X710 persistent console is active, use normal printk markers to
+trace start_kernel, rest_init, initcall levels, kernel_init_freeable and the
+rdinit handoff. Force initcall_debug for this diagnostic build so a hang in a
+specific built-in initcall leaves the last calling/returned pair in sec_log.
+
+Also expose arm64's recorded mmu_enabled_at_boot value so the console marker
+can distinguish the firmware entry state without another pre-MMU memory write.
+
+diff --git a/arch/arm64/include/asm/setup.h b/arch/arm64/include/asm/setup.h
+--- a/arch/arm64/include/asm/setup.h
++++ b/arch/arm64/include/asm/setup.h
+@@ -10,8 +10,9 @@
+ /*
+  * These two variables are used in the head.S file.
+  */
+-extern phys_addr_t __fdt_pointer __initdata;
+-extern u64 __cacheline_aligned boot_args[4];
++extern phys_addr_t __fdt_pointer __initdata;
++extern u64 mmu_enabled_at_boot __initdata;
++extern u64 __cacheline_aligned boot_args[4];
+ 
+ static inline bool arch_parse_debug_rodata(char *arg)
+ {
+
+diff --git a/init/main.c b/init/main.c
+--- a/init/main.c
++++ b/init/main.c
+@@ -668,45 +668,49 @@
+ 
+ static __initdata DECLARE_COMPLETION(kthreadd_done);
+ 
+-static noinline void __ref __noreturn rest_init(void)
+-{
+-	struct task_struct *tsk;
+-	int pid;
+-
+-	rcu_scheduler_starting();
+-	/*
+-	 * We need to spawn init first so that it obtains pid 1, however
+-	 * the init task will end up wanting to create kthreads, which, if
+-	 * we schedule it before we create kthreadd, will OOPS.
+-	 */
+-	pid = user_mode_thread(kernel_init, NULL, CLONE_FS);
+-	/*
+-	 * Pin init on the boot CPU. Task migration is not properly working
+-	 * until sched_init_smp() has been run. It will set the allowed
+-	 * CPUs for init to the non isolated CPUs.
+-	 */
+-	rcu_read_lock();
+-	tsk = find_task_by_pid_ns(pid, &init_pid_ns);
+-	tsk->flags |= PF_NO_SETAFFINITY;
+-	set_cpus_allowed_ptr(tsk, cpumask_of(smp_processor_id()));
+-	rcu_read_unlock();
+-
+-	numa_default_policy();
+-	pid = kernel_thread(kthreadd, NULL, NULL, CLONE_FS | CLONE_FILES);
+-	rcu_read_lock();
+-	kthreadd_task = find_task_by_pid_ns(pid, &init_pid_ns);
+-	rcu_read_unlock();
+-
+-	/*
+-	 * Enable might_sleep() and smp_processor_id() checks.
+-	 * They cannot be enabled earlier because with CONFIG_PREEMPTION=y
+-	 * kernel_thread() would trigger might_sleep() splats. With
+-	 * CONFIG_PREEMPT_VOLUNTARY=y the init task might have scheduled
+-	 * already, but it's stuck on the kthreadd_done completion.
+-	 */
+-	system_state = SYSTEM_SCHEDULING;
+-
+-	complete(&kthreadd_done);
++static noinline void __ref __noreturn rest_init(void)
++{
++	struct task_struct *tsk;
++	int pid;
++
++	pr_info("GTS9WIFI: rest_init enter\n");
++	rcu_scheduler_starting();
++	/*
++	 * We need to spawn init first so that it obtains pid 1, however
++	 * the init task will end up wanting to create kthreads, which, if
++	 * we schedule it before we create kthreadd, will OOPS.
++	 */
++	pid = user_mode_thread(kernel_init, NULL, CLONE_FS);
++	pr_info("GTS9WIFI: rest_init pid1_created pid=%d\n", pid);
++	/*
++	 * Pin init on the boot CPU. Task migration is not properly working
++	 * until sched_init_smp() has been run. It will set the allowed
++	 * CPUs for init to the non isolated CPUs.
++	 */
++	rcu_read_lock();
++	tsk = find_task_by_pid_ns(pid, &init_pid_ns);
++	tsk->flags |= PF_NO_SETAFFINITY;
++	set_cpus_allowed_ptr(tsk, cpumask_of(smp_processor_id()));
++	rcu_read_unlock();
++
++	numa_default_policy();
++	pid = kernel_thread(kthreadd, NULL, NULL, CLONE_FS | CLONE_FILES);
++	pr_info("GTS9WIFI: rest_init kthreadd_created pid=%d\n", pid);
++	rcu_read_lock();
++	kthreadd_task = find_task_by_pid_ns(pid, &init_pid_ns);
++	rcu_read_unlock();
++
++	/*
++	 * Enable might_sleep() and smp_processor_id() checks.
++	 * They cannot be enabled earlier because with CONFIG_PREEMPTION=y
++	 * kernel_thread() would trigger might_sleep() splats. With
++	 * CONFIG_PREEMPT_VOLUNTARY=y the init task might have scheduled
++	 * already, but it's stuck on the kthreadd_done completion.
++	 */
++	system_state = SYSTEM_SCHEDULING;
++
++	complete(&kthreadd_done);
++	pr_info("GTS9WIFI: rest_init kthreadd_ready\n");
+ 
+ 	/*
+ 	 * The boot idle thread must execute schedule()
+@@ -1068,10 +1072,12 @@
+ 	kvfree_rcu_init();
+ 
+ 	/* Trace events are available after this */
+-	trace_init();
+-
+-	if (initcall_debug)
+-		initcall_debug_enable();
++	trace_init();
++
++	/* SM-X710 bring-up: persist the last entered initcall before a hang. */
++	initcall_debug = true;
++	if (initcall_debug)
++		initcall_debug_enable();
+ 
+ 	context_tracking_init();
+ 	/* init some links before init_ISA_irqs() */
+@@ -1109,10 +1115,12 @@
+ 	 * we've done PCI setups etc, and console_init() must be aware of
+ 	 * this. But we do want output early, in case something goes wrong.
+ 	 */
+-	console_init();
+-	if (panic_later)
+-		panic("Too many boot %s vars at `%s'", panic_later,
+-		      panic_param);
++	console_init();
++	pr_info("GTS9WIFI: start_kernel after_console_init mmu_enabled_at_boot=%#llx initcall_debug=%d\n",
++		(unsigned long long)mmu_enabled_at_boot, initcall_debug);
++	if (panic_later)
++		panic("Too many boot %s vars at `%s'", panic_later,
++		      panic_param);
+ 
+ 	lockdep_init();
+ 
+@@ -1171,8 +1179,9 @@
+ 	arch_post_acpi_subsys_init();
+ 	kcsan_init();
+ 
+-	/* Do the rest non-__init'ed, we're now alive */
+-	rest_init();
++	/* Do the rest non-__init'ed, we're now alive */
++	pr_info("GTS9WIFI: start_kernel before_rest_init\n");
++	rest_init();
+ 
+ 	/*
+ 	 * Avoid stack canaries in callers of boot_init_stack_canary for gcc-10
+@@ -1404,9 +1413,13 @@
+ 		   level, level,
+ 		   NULL, ignore_unknown_bootoption);
+ 
+-	do_trace_initcall_level(initcall_level_names[level]);
+-	for (fn = initcall_levels[level]; fn < initcall_levels[level+1]; fn++)
+-		do_one_initcall(initcall_from_entry(fn));
++	pr_info("GTS9WIFI: initcall level %s begin\n",
++		initcall_level_names[level]);
++	do_trace_initcall_level(initcall_level_names[level]);
++	for (fn = initcall_levels[level]; fn < initcall_levels[level+1]; fn++)
++		do_one_initcall(initcall_from_entry(fn));
++	pr_info("GTS9WIFI: initcall level %s end\n",
++		initcall_level_names[level]);
+ }
+ 
+ static void __init do_initcalls(void)
+@@ -1536,18 +1549,21 @@
+ 	free_initmem_default(POISON_FREE_INITMEM);
+ }
+ 
+-static int __ref kernel_init(void *unused)
+-{
+-	int ret;
+-
+-	/*
+-	 * Wait until kthreadd is all set-up.
+-	 */
+-	wait_for_completion(&kthreadd_done);
+-
+-	kernel_init_freeable();
+-	/* need to finish all async __init code before freeing the memory */
+-	async_synchronize_full();
++static int __ref kernel_init(void *unused)
++{
++	int ret;
++
++	pr_info("GTS9WIFI: kernel_init enter\n");
++	/*
++	 * Wait until kthreadd is all set-up.
++	 */
++	wait_for_completion(&kthreadd_done);
++	pr_info("GTS9WIFI: kernel_init kthreadd_ready\n");
++
++	kernel_init_freeable();
++	pr_info("GTS9WIFI: kernel_init kernel_init_freeable_done\n");
++	/* need to finish all async __init code before freeing the memory */
++	async_synchronize_full();
+ 
+ 	system_state = SYSTEM_FREEING_INITMEM;
+ 	kprobe_free_init_mem();
+@@ -1570,13 +1586,16 @@
+ 
+ 	do_sysctl_args();
+ 
+-	if (ramdisk_execute_command) {
+-		ret = run_init_process(ramdisk_execute_command);
+-		if (!ret)
+-			return 0;
+-		pr_err("Failed to execute %s (error %d)\n",
+-		       ramdisk_execute_command, ret);
+-	}
++	if (ramdisk_execute_command) {
++		pr_info("GTS9WIFI: kernel_init before_rdinit_exec path=%s\n",
++			ramdisk_execute_command);
++		ret = run_init_process(ramdisk_execute_command);
++		if (!ret)
++			return 0;
++		pr_info("GTS9WIFI: kernel_init rdinit_exec_failed ret=%d\n", ret);
++		pr_err("Failed to execute %s (error %d)\n",
++		       ramdisk_execute_command, ret);
++	}
+ 
+ 	/*
+ 	 * We try each of these until one succeeds.
+@@ -1626,65 +1645,78 @@
+ 	fput(file);
+ }
+ 
+-static noinline void __init kernel_init_freeable(void)
+-{
+-	/* Now the scheduler is fully set up and can do blocking allocations */
+-	gfp_allowed_mask = __GFP_BITS_MASK;
+-
+-	/*
+-	 * init can allocate pages on any node
+-	 */
+-	set_mems_allowed(node_states[N_MEMORY]);
+-
+-	cad_pid = get_pid(task_pid(current));
+-
+-	smp_prepare_cpus(setup_max_cpus);
+-
+-	workqueue_init();
+-
+-	init_mm_internals();
+-
+-	do_pre_smp_initcalls();
+-	lockup_detector_init();
+-
+-	smp_init();
+-	sched_init_smp();
+-
+-	workqueue_init_topology();
+-	async_init();
+-	padata_init();
+-	page_alloc_init_late();
+-
+-	do_basic_setup();
+-
+-	kunit_run_all_tests();
+-
+-	wait_for_initramfs();
+-	console_on_rootfs();
+-
+-	/*
+-	 * check if there is an early userspace init.  If yes, let it do all
+-	 * the work
+-	 */
+-	int ramdisk_command_access;
+-	ramdisk_command_access = init_eaccess(ramdisk_execute_command);
+-	if (ramdisk_command_access != 0) {
+-		if (ramdisk_execute_command_set)
+-			pr_warn("check access for rdinit=%s failed: %i, ignoring\n",
+-				ramdisk_execute_command, ramdisk_command_access);
+-		ramdisk_execute_command = NULL;
+-		prepare_namespace();
+-	}
+-
+-	/*
+-	 * Ok, we have completed the initial bootup, and
+-	 * we're essentially up and running. Get rid of the
+-	 * initmem segments and start the user-mode stuff..
+-	 *
+-	 * rootfs is available now, try loading the public keys
+-	 * and default modules
+-	 */
+-
+-	integrity_load_keys();
+-}
++static noinline void __init kernel_init_freeable(void)
++{
++	pr_info("GTS9WIFI: kernel_init_freeable enter\n");
++	/* Now the scheduler is fully set up and can do blocking allocations */
++	gfp_allowed_mask = __GFP_BITS_MASK;
++
++	/*
++	 * init can allocate pages on any node
++	 */
++	set_mems_allowed(node_states[N_MEMORY]);
++
++	cad_pid = get_pid(task_pid(current));
++
++	smp_prepare_cpus(setup_max_cpus);
++
++	workqueue_init();
++
++	init_mm_internals();
++
++	pr_info("GTS9WIFI: kernel_init_freeable before_pre_smp_initcalls\n");
++	do_pre_smp_initcalls();
++	pr_info("GTS9WIFI: kernel_init_freeable after_pre_smp_initcalls\n");
++	lockup_detector_init();
++
++	smp_init();
++	pr_info("GTS9WIFI: kernel_init_freeable after_smp_init\n");
++	sched_init_smp();
++
++	workqueue_init_topology();
++	async_init();
++	padata_init();
++	page_alloc_init_late();
++
++	pr_info("GTS9WIFI: kernel_init_freeable before_basic_setup\n");
++	do_basic_setup();
++	pr_info("GTS9WIFI: kernel_init_freeable after_basic_setup\n");
++
++	kunit_run_all_tests();
++
++	wait_for_initramfs();
++	pr_info("GTS9WIFI: kernel_init_freeable after_wait_for_initramfs\n");
++	console_on_rootfs();
++	pr_info("GTS9WIFI: kernel_init_freeable after_console_on_rootfs\n");
++
++	/*
++	 * check if there is an early userspace init.  If yes, let it do all
++	 * the work
++	 */
++	int ramdisk_command_access;
++	ramdisk_command_access = init_eaccess(ramdisk_execute_command);
++	pr_info("GTS9WIFI: kernel_init_freeable rdinit_access=%d path=%s\n",
++		ramdisk_command_access,
++		ramdisk_execute_command ? ramdisk_execute_command : "<none>");
++	if (ramdisk_command_access != 0) {
++		if (ramdisk_execute_command_set)
++			pr_warn("check access for rdinit=%s failed: %i, ignoring\n",
++				ramdisk_execute_command, ramdisk_command_access);
++		ramdisk_execute_command = NULL;
++		pr_info("GTS9WIFI: kernel_init_freeable before_prepare_namespace\n");
++		prepare_namespace();
++	}
++
++	/*
++	 * Ok, we have completed the initial bootup, and
++	 * we're essentially up and running. Get rid of the
++	 * initmem segments and start the user-mode stuff..
++	 *
++	 * rootfs is available now, try loading the public keys
++	 * and default modules
++	 */
++
++	pr_info("GTS9WIFI: kernel_init_freeable done\n");
++	integrity_load_keys();
++}
+ 
+
