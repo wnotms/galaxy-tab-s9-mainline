@@ -1,0 +1,127 @@
+Subject: [PATCH] arm64: record SM-X710 pre-MMU entry markers
+
+The Samsung SM-X710 bring-up can reach ABL ExitBootServices without leaving
+normal kernel printk output. Record a few fixed ASCII markers directly in the
+validated Samsung sec_log_buf while the MMU and D-cache are off. Recovery can
+then expose them through /proc/last_kmsg even when setup_arch is never reached.
+
+The diagnostic is compiled only with CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG. The
+physical address is the same owner-validated 2 MiB region used by the existing
+persistent console. If firmware enters with the MMU already enabled the
+pre-MMU markers are deliberately skipped rather than dereferencing a physical
+address through an unknown translation regime.
+
+diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
+--- a/arch/arm64/kernel/head.S
++++ b/arch/arm64/kernel/head.S
+@@ -1,6 +1,18 @@
+ SYM_CODE_START(primary_entry)
+ 	bl	record_mmu_state
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	cbnz	x19, .Lgts9wifi_skip_entry_01
++	mov_q	x12, 0x0a31303331453947	// "G9E1301\n"
++	bl	gts9wifi_entry_marker_reset
++.Lgts9wifi_skip_entry_01:
++#endif
+ 	bl	preserve_boot_args
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	cbnz	x19, .Lgts9wifi_skip_entry_02
++	mov_q	x12, 0x0a32303331453947	// "G9E1302\n"
++	bl	gts9wifi_entry_marker_append
++.Lgts9wifi_skip_entry_02:
++#endif
+ 
+ 	adrp	x1, early_init_stack
+ 	mov	sp, x1
+@@ -8,6 +20,12 @@
+ 	adrp	x0, __pi_init_idmap_pg_dir
+ 	mov	x1, xzr
+ 	bl	__pi_create_init_idmap
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	cbnz	x19, .Lgts9wifi_skip_entry_03
++	mov_q	x12, 0x0a33303331453947	// "G9E1303\n"
++	bl	gts9wifi_entry_marker_append
++.Lgts9wifi_skip_entry_03:
++#endif
+ 
+ 	/*
+ 	 * If the page tables have been populated with non-cacheable
+@@ -35,6 +53,12 @@
+ 1:	mov	x0, x19
+ 	bl	init_kernel_el			// w0=cpu_boot_mode
+ 	mov	x20, x0
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	cbnz	x19, .Lgts9wifi_skip_entry_04
++	mov_q	x12, 0x0a34303331453947	// "G9E1304\n"
++	bl	gts9wifi_entry_marker_append
++.Lgts9wifi_skip_entry_04:
++#endif
+ 
+ 	/*
+ 	 * The following calls CPU setup code, see arch/arm64/mm/proc.S for
+@@ -43,9 +67,65 @@
+ 	 * the TCR will have been set.
+ 	 */
+ 	bl	__cpu_setup			// initialise processor
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	cbnz	x19, .Lgts9wifi_skip_entry_05
++	mov_q	x12, 0x0a35303331453947	// "G9E1305\n"
++	bl	gts9wifi_entry_marker_append
++.Lgts9wifi_skip_entry_05:
++#endif
+ 	b	__primary_switch
+ SYM_CODE_END(primary_entry)
+ 
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++/*
++ * sec_log_buf layout used by the downstream recovery and the matching
++ * mainline diagnostic driver:
++ *   +0 boot_count, +4 magic, +8 index, +12 previous_index, +16 data.
++ *
++ * x12 carries one eight-byte ASCII marker.  These helpers intentionally use
++ * only caller-saved x9-x11 and do not touch x0/x19/x20/x21 boot state.
++ */
++SYM_CODE_START_LOCAL(gts9wifi_entry_marker_reset)
++	mov_q	x9, 0x0000000880200000
++	ldr	w10, [x9, #4]
++	movz	w11, #0x4f4c
++	movk	w11, #0x4d47, lsl #16	// 0x4d474f4c: "LOGM"
++	cmp	w10, w11
++	b.eq	1f
++	str	w11, [x9, #4]
++	mov	w10, #1
++	str	w10, [x9]
++	b	2f
++1:	ldr	w10, [x9]
++	add	w10, w10, #1
++	str	w10, [x9]
++2:	str	wzr, [x9, #8]
++	str	wzr, [x9, #12]
++	str	x12, [x9, #16]
++	mov	w10, #8
++	str	w10, [x9, #8]
++	str	w10, [x9, #12]
++	dsb	sy
++	ret
++SYM_CODE_END(gts9wifi_entry_marker_reset)
++
++SYM_CODE_START_LOCAL(gts9wifi_entry_marker_append)
++	mov_q	x9, 0x0000000880200000
++	ldr	w10, [x9, #8]
++	/* Keep the assembly diagnostic in the first 256 bytes of ring data. */
++	cmp	w10, #248
++	b.hi	1f
++	add	x11, x9, #16
++	add	x11, x11, w10, uxtw
++	str	x12, [x11]
++	add	w10, w10, #8
++	str	w10, [x9, #8]
++	str	w10, [x9, #12]
++	dsb	sy
++1:	ret
++SYM_CODE_END(gts9wifi_entry_marker_append)
++#endif
++
+ 	__INIT
+ SYM_CODE_START_LOCAL(record_mmu_state)
+ 	mrs	x19, CurrentEL
