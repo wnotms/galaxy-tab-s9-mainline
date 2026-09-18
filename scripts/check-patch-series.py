@@ -120,6 +120,11 @@ def validate_patch(path: Path) -> tuple[int, int]:
                     f"new {new_seen}/{new_expected})"
                 )
             i += 1
+            if old_seen == old_expected and new_seen == new_expected:
+                # Hunk length is authoritative. Stop here so a standard
+                # git-format-patch footer ("-- " and version) is not
+                # mistaken for hunk body.
+                break
 
         if old_seen != old_expected or new_seen != new_expected:
             raise PatchError(
