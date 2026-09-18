@@ -10,6 +10,15 @@
 
 测试镜像、预检、启动日志及结果保存在被 Git 忽略的 `artifacts/boot-tests/seventh-sm-x710/`。
 
+镜像 SHA256：
+
+```text
+83839ec678b88f8ba103da89f864507cfa875877650f3aaf433ecee7646bd7b5  boot.img
+718c389ebf7cf89cdb9712b9c58b7b2929ca4121da99c495c0eb463c064bc930  init_boot.img
+c23fff2ebadab9ecd9e8eef73587e39d7bed48694f9f7a703dbe1a0c6ec5bcbc  vendor_boot.img
+c17418be08365c03a5ce3a220af734b14ec2e6b03c0cbc1ed9721be6f21d3ef3  dtbo.img
+```
+
 ## 当前状态
 
-正在准备实机预检和写入；启动及恢复结果待实机验证。
+恢复包的实机只读校验通过，缺失备份的 --restore 测试在写入前拒绝。机型、固件、AVB flags 2、当前原分区和四个恢复备份预检通过。四个镜像已写入并逐个回读核对，recovery / vbmeta 保持不变，已请求正常重启。Windows 未观察到 Linux / Samsung USB 设备、新网卡或 ADB。已提示返回 TWRP；目前实验镜像仍在四个启动分区，日志尚未回收，原四分区尚未恢复。缺失 USB 枚举不能单独证明内核未执行。
