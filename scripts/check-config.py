@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-required = """ARM64 ARCH_QCOM SMP BLK_DEV_INITRD RD_GZIP BINFMT_ELF
+required = """ARM64 ARCH_QCOM KERNEL_MODE_NEON EFI EFI_STUB RELOCATABLE SMP BLK_DEV_INITRD RD_GZIP BINFMT_ELF
 BINFMT_SCRIPT DEVTMPFS PROC_FS SYSFS TMPFS CONFIGFS_FS INET
 SM_GCC_8550 SM_TCSRCC_8550 QCOM_SCM QCOM_TZMEM QCOM_RPMH QCOM_RPMHPD
 QCOM_SMEM QCOM_PDC PINCTRL_SM8550 PINCTRL_QCOM_SPMI_PMIC SPMI_MSM_PMIC_ARB
@@ -15,4 +15,6 @@ config = set(Path(sys.argv[1]).read_text().splitlines())
 missing = [name for name in required if f"CONFIG_{name}=y" not in config]
 if missing:
     sys.exit("Required built-in options missing: " + ", ".join(missing))
+if 'CONFIG_RANDOMIZE_BASE=y' in config:
+    sys.exit('Diagnostic image must keep KASLR disabled')
 print(f"Verified {len(required)} required built-in options")

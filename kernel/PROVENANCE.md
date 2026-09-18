@@ -42,3 +42,5 @@
 `find-sec-log-by-validated-flat-dt-range.patch` 是第七次测试新增的 GPL-2.0-only 本地诊断。在 S9 专用构建中，早期路径遍历 reserved-memory 的子节点，保留精确 `0x880200000` / 2 MiB reg 检查，取消节点名称和根 compatible 的阻断条件，并记录 compatible 的实际检查结果。该假设尚需实机验证；仍无法覆盖保留区匹配或映射之前的失败，也不能保证复位后日志保留。正式 console 的 S9 身份检查不变。哈希记录在 `local_patches`。
 
 第八次测试按 Ultra 固定固件端 DTB 的做法，将 S9 DTS 恢复到 `ef83018`，并逐字节核对首次实测 DTB；固定哈希和来源见 `device/firmware-dtb-baseline.json`。八个内核补丁未变。旧保留区布局只能以这个精确二进制输入使用，不能被解释为完整启动已验证。
+
+第十二次对齐参考 Ultra 配置中的 EFI / EFI_STUB 和 RELOCATABLE，保留 KASLR 关闭；八个源码补丁及固定初始 DTB 未变。该改动仅是启动兼容候选，实际入口和停滞原因仍需实机验证。
