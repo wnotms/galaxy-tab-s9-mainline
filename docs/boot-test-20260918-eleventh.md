@@ -81,15 +81,18 @@ python3 scripts/build-boot-bundle.py \
 python3 scripts/verify-boot-bundle.py artifacts/test11
 ```
 
-## 实机状态及下一次测试
+## 实机测试：已刷写，等待冷启动观察
 
-文件第 30 节明确要求“不自动刷入设备”，因此本次仅构建验证及 TWRP 只读预检，不上传或写入镜像、不重启。设备目前留在 TWRP，原六个分区哈希已匹配，boot/init_boot/vendor_boot/dtbo 的恢复备份已检查，vbmeta/recovery 的主机备份另外核对通过。
+用户随后明确回复“测试”，授权本次刷写及启动验证。已保存刷写前 pstore、last_kmsg 和 Windows USB／网络基线，并将候选四镜像归档到 `artifacts/boot-tests/test11-gpio-sm-x710/tested-bundle/`。
 
-- Boot type：尚未启动；计划 cold，实际类型必须届时确认。
-- Screen / reboot behavior / time before reboot：尚未测试。
-- USB：当前是 TWRP ADB，未作为 Linux 成功判据。
-- pstore / last_kmsg：本 GPIO 候选尚未启动，没有属于它的新日志；不会把前次日志作为本次结果。
-- Fatal NoC：Unknown。
-- Result：NOT RUN；Secure GPIO fix 尚未确认。
+TWRP 新一轮预检通过，原六个分区大小及哈希匹配，四个恢复备份验证通过。boot/init_boot/vendor_boot/dtbo 已刷入并逐一回读确认候选哈希；vbmeta/recovery 校验未变。未执行普通 reboot，而是执行 `adb shell reboot -p`，返回码 0。已请用户断开 USB、确认完全关机、等待 15 秒，再按侧键正常开机并重新连接 USB。命令返回不能单独证明实际冷启动完成。
 
-收到刷写授权后才进入实机冷启动阶段。刷后返回 TWRP 时应优先保存 pstore，再取 last_kmsg；核对旧日志和本次日志，记录 cold/warm/unknown，只有取得继续运行的新内核证据后才评估 NoC 是否被修复。无新日志仅为 INCONCLUSIVE，不能据此证明修复，也不自动撤回 GPIO 属性。
+- Boot type：unknown；请求 cold，等待用户确认实际操作。
+- Screen / reboot behavior / time before reboot：等待观察。
+- USB：已保存刷前基线；等待本次启动后观察。
+- pstore / last_kmsg：已保存刷前日志，启动后日志尚待采集；原计划返回 TWRP 后优先保存 pstore，再取 last_kmsg。
+- Fatal NoC：Unknown；Secure GPIO fix 尚未确认。
+- Result：PENDING。
+- 分区状态：候选四镜像仍在设备上，尚未恢复；原分区恢复套件保留在 microSD。
+
+本次操作记录在 `artifacts/boot-tests/test11-gpio-sm-x710/`，flash/report.json 保存预检与各项写入／回读证据，boot-operation.json 保存关机请求时间。构建时的 manifest 作为输入记录保留，实时状态以本次操作记录为准。无新内核日志时只能判为 INCONCLUSIVE，不能据此证明修复或未进入内核，也不自动撤回 GPIO 属性。
