@@ -34,6 +34,11 @@
       "path": "kernel/patches/register-sec-log-before-smp.patch",
       "sha256": "14f9973bfef545b44d208ad7c8344d3f94ab1e839578fab4f7782db4bb6475cc",
       "adaptation": "Register the existing SM-X710 persistent console through console_initcall before SMP/platform init; static state, DT identity/address guards, direct reachability marker; unchanged ring writes and WB mapping"
+    },
+    {
+      "path": "kernel/patches/clean-sec-log-cache-before-reset.patch",
+      "sha256": "13e9c7e873f5b4b67460ccb25421abe0f6223fb0db217b8b8c1dd6ab56036209",
+      "adaptation": "ARM64 synchronized dcache_clean_poc on written payload segments before index publication, then on ring header; preserve WB mapping, console_initcall and ring layout; restrict driver to ARM64"
     }
   ]
 }

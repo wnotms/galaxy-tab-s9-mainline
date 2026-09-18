@@ -1,0 +1,53 @@
+Subject: [PATCH] soc: qcom: clean SM-X710 log payload and header to PoC
+
+Diagnostic for manual warm-reset retention. Preserve WB mapping and ring format.
+
+diff --git a/drivers/soc/qcom/samsung-gts9wifi-sec-log.c b/drivers/soc/qcom/samsung-gts9wifi-sec-log.c
+--- a/drivers/soc/qcom/samsung-gts9wifi-sec-log.c
++++ b/drivers/soc/qcom/samsung-gts9wifi-sec-log.c
+@@ -14,6 +14,8 @@
+ #include <linux/sizes.h>
+ #include <linux/of.h>
+ #include <linux/of_reserved_mem.h>
++
++#include <asm/cacheflush.h>
+ 
+ #define SEC_LOG_MAGIC	0x4d474f4c /* "LOGM" on little-endian ARM64 */
+ 
+@@ -56,6 +58,13 @@
+ 	if (first != count)
+ 		memcpy(log->header->data, text + first, count - first);
+ 
++	/* Complete payload writeback before publishing its new length. */
++	dcache_clean_poc((unsigned long)&log->header->data[index % log->data_size],
++			 (unsigned long)&log->header->data[index % log->data_size] + first);
++	if (first != count)
++		dcache_clean_poc((unsigned long)log->header->data,
++				 (unsigned long)log->header->data + count - first);
++
+ 	/*
+ 	 * Match the downstream ring: index is monotonically increasing.  Keep
+ 	 * previous_index current as well.  Samsung's boot path normally snapshots
+@@ -67,6 +76,9 @@
+ 	index += count;
+ 	WRITE_ONCE(log->header->index, index);
+ 	WRITE_ONCE(log->header->previous_index, index);
++	/* The synchronized PoC clean also completes the header stores. */
++	dcache_clean_poc((unsigned long)log->header,
++			 (unsigned long)log->header + sizeof(*log->header));
+ }
+ 
+ /*
+
+diff --git a/drivers/soc/qcom/Kconfig b/drivers/soc/qcom/Kconfig
+--- a/drivers/soc/qcom/Kconfig
++++ b/drivers/soc/qcom/Kconfig
+@@ -297,7 +297,7 @@
+ 
+ config SAMSUNG_GTS9WIFI_SEC_LOG
+ 	bool "Samsung SM-X710 persistent early console"
+-	depends on ARCH_QCOM
++	depends on ARCH_QCOM && ARM64
+ 	help
+ 	  Experimental console using the owner's 2 MiB Samsung sec_log_buf.
+ 	  Recovery can expose the log after a warm reset as /proc/last_kmsg.
