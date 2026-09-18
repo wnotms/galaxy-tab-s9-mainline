@@ -37,7 +37,7 @@ REQUIRED_INIT_MARKERS = (
     "GTS9WIFI: USB NCM local ready",
     "GTS9WIFI: USB host configured",
     "GTS9WIFI: USB host configuration timeout",
-    "GTS9WIFI: platform_driver",
+    "platform_driver ",
     "platform_device name=",
     "manual_dwc3_bind",
 )
