@@ -237,7 +237,7 @@ diff --git a/init/main.c b/init/main.c
  
  	/*
  	 * We try each of these until one succeeds.
-@@ -1626,65 +1645,78 @@
+@@ -1626,64 +1645,77 @@
  	fput(file);
  }
  
@@ -376,5 +376,4 @@ diff --git a/init/main.c b/init/main.c
 +	pr_info("GTS9WIFI: kernel_init_freeable done\n");
 +	integrity_load_keys();
 +}
- 
 
