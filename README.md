@@ -2,7 +2,7 @@
 
 面向 **Samsung Galaxy Tab S9 Wi-Fi / SM-X710 / gts9wifi** 的独立移植仓库。基于 [S9 Ultra 项目](https://github.com/agcarbajo/ubuntu-galaxy-tab-s9-ultra)的启动经验，使用本机通过 TWRP 提取的分区和设备树建立 S9 板级配置。
 
-当前是**可构建的启动调试基线**：主线内核、独立 S9 DTB、RAM 中运行的 USB 网络诊断环境，以及 Android v4 启动镜像生成工具。**首次实机日志确认主线内核执行、8 个 CPU 启动及 initramfs 解包；约 31 毫秒后固件报告 NoC 致命错误。第二次同名节点方案出现 ABL 保留失败。第三次改由 ABL 添加三个保留区，已写入重启，仍未枚举 USB，等待返回 TWRP 回收日志及恢复；当前四个启动分区仍是第三版实验镜像。屏幕和触控尚未实现，不能作为可用的 Ubuntu 桌面系统。** 见 [首次](docs/boot-test-20260918.md)、[第二次](docs/boot-test-20260918-second.md)及 [第三次启动记录](docs/boot-test-20260918-third.md)。
+当前是**可构建的启动调试基线**：主线内核、独立 S9 DTB、RAM 中运行的 USB 网络诊断环境，以及 Android v4 启动镜像生成工具。**首次实机日志确认主线内核执行、8 个 CPU 启动及 initramfs 解包；约 31 毫秒后固件报告 NoC 致命错误。第二次同名节点方案出现 ABL 保留失败。第三次改由 ABL 添加三个保留区，不再出现这些 ABL 错误，但未取得本次主线输出或 USB 枚举，完整启动仍未通过。原四个启动分区已恢复，设备留在 TWRP。屏幕和触控尚未实现，不能作为可用的 Ubuntu 桌面系统。** 见 [首次](docs/boot-test-20260918.md)、[第二次](docs/boot-test-20260918-second.md)及 [第三次启动记录](docs/boot-test-20260918-third.md)。
 
 ## 当前内容
 
@@ -10,10 +10,10 @@
 |---|---|
 | Linux `v7.2-rc3`、Clang/LLVM ARM64 构建 | 已完成本机编译 |
 | S9 DTS：board `04`，覆盖实机 revision `6` | 已生成 DTB 并校验 |
-| Samsung 保留内存与持久内核日志 | 首次已回收主线日志；第三版由 ABL 添加三个保留区，实机日志待回收 |
+| Samsung 保留内存与持久内核日志 | 首次已回收主线日志；第三版不再出现三个 ABL 添加错误，实际修补后属性和早期日志仍待验证 |
 | eUSB2、NXP PTN3222、USB2 peripheral / NCM | 驱动已编入，枚举待实测 |
 | microSD / ext4 | 驱动已编入；当前 initramfs 不自动挂载 SD |
-| Android v4 的四个启动镜像 | 三次实机写入及回读通过；均未枚举 USB，第三次待回收日志及恢复 |
+| Android v4 的四个启动镜像 | 三次实机写入及回读通过；均未枚举 USB，日志已归档，原分区已恢复 |
 | ANA38407 AMSA10FA01、STM FTS1BA90A、Wacom | 保留实机资料；未启用驱动 |
 | WLAN、音频、充电、相机、指纹、GPU | 后续阶段，当前未启用 |
 
