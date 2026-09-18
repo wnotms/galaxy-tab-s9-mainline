@@ -16,6 +16,17 @@ DTB 检查器仅在哈希完全等于第一次实测 DTB 时允许旧的三处�
 
 `make bundle`、四镜像 Android v4 / AVB / ramdisk 检查及 `make check` 通过。首次归档 DTB 和第七次现代布局 DTB 均通过相应输入检查；将旧基线 model 的一个字节改为同长度有效字符串后，检查器因哈希不匹配拒绝。内核和 initramfs 输入哈希与第七次一致。
 
-## 实机进度
+镜像 SHA256：
 
-正在进行 TWRP 预检，启动与恢复尚未完成。测试镜像与日志位于被 Git 忽略的 `artifacts/boot-tests/eighth-sm-x710/`。
+```text
+affb95de789ad4fbe9934aba7be743b3b6140172e2c993ea65d520dc97bf7871  boot.img
+718c389ebf7cf89cdb9712b9c58b7b2929ca4121da99c495c0eb463c064bc930  init_boot.img
+6ff1bc5b377b1d6b00eb9381798be0bc26cad33f95f8a3671be97158872d1945  vendor_boot.img
+c17418be08365c03a5ce3a220af734b14ec2e6b03c0cbc1ed9721be6f21d3ef3  dtbo.img
+```
+
+## 实机结果
+
+TWRP 预检通过：机型、固件、AVB flags 2、六个当前分区及四份原备份符合预期。四个镜像已写入且完整回读匹配，recovery / vbmeta 保持不变，已请求正常重启。Windows 未观察到 Linux / Samsung USB、新网卡或 ADB；用户返回 TWRP 后已保存日志，再恢复原四个分区；最终六个分区哈希与测试前原分区匹配，设备留在 TWRP。测试镜像与日志位于被 Git 忽略的 `artifacts/boot-tests/eighth-sm-x710/`。
+
+启动验证未通过。last_kmsg 为 2097136 字节，SHA256 `6f9a0081c49714cef0b4e637ec8e21af4ce57844cb0724cc615a98f900f3c314`；没有 compatible 诊断、五个检查点、正式 console 标记、主线内核版本、保留区错误或 NoC 致命标记。实验 ABL DT 更新 5930237 微秒、Exit EBS 6092619 微秒。恢复第一次 DTB 没有恢复可观察的内核输出，不能把二进制布局解释为唯一原因；下一次将用首次实际内核二进制对照。
