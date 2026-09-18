@@ -161,6 +161,75 @@ else
  echo 'GTS9WIFI: USB gadget skipped because configfs unavailable' > /dev/kmsg 2>/dev/null || true
 fi
 
+record_supplier_tree()
+{
+ local consumer_path="$1"
+ local consumer_name="$2"
+ local depth="$3"
+ local link linkname spec supplier_bus supplier_name supplier_path
+ local link_status auto_remove runtime_pm sync_state_only
+ local supplier_driver supplier_waiting supplier_status supplier_modalias supplier_compatible
+ local next_depth
+
+ [ "$depth" -le 3 ] || return 0
+
+ for link in "$consumer_path"/supplier:*; do
+  [ -L "$link" ] || continue
+
+  linkname="${link##*/}"
+  spec="${linkname#supplier:}"
+  supplier_bus="${spec%%:*}"
+  supplier_name="${spec#*:}"
+  supplier_path="/sys/bus/$supplier_bus/devices/$supplier_name"
+
+  link_status="$(cat "$link/status" 2>/dev/null)"
+  [ -n "$link_status" ] || link_status='<unavailable>'
+  auto_remove="$(cat "$link/auto_remove_on" 2>/dev/null)"
+  [ -n "$auto_remove" ] || auto_remove='<unavailable>'
+  runtime_pm="$(cat "$link/runtime_pm" 2>/dev/null)"
+  [ -n "$runtime_pm" ] || runtime_pm='<unavailable>'
+  sync_state_only="$(cat "$link/sync_state_only" 2>/dev/null)"
+  [ -n "$sync_state_only" ] || sync_state_only='<unavailable>'
+
+  supplier_driver='<none>'
+  supplier_waiting='<unavailable>'
+  supplier_status='<none>'
+  supplier_modalias='<none>'
+  supplier_compatible='<none>'
+
+  if [ -e "$supplier_path" ]; then
+   if [ -L "$supplier_path/driver" ]; then
+    supplier_driver="$(/bin/busybox readlink "$supplier_path/driver" 2>/dev/null)"
+    supplier_driver="${supplier_driver##*/}"
+   fi
+   if [ -r "$supplier_path/waiting_for_supplier" ]; then
+    supplier_waiting="$(cat "$supplier_path/waiting_for_supplier" 2>/dev/null)"
+    [ -n "$supplier_waiting" ] || supplier_waiting='<empty>'
+   fi
+   if [ -r "$supplier_path/of_node/status" ]; then
+    supplier_status="$(/bin/busybox tr -d '\\000' < "$supplier_path/of_node/status" 2>/dev/null)"
+   fi
+   supplier_modalias="$(cat "$supplier_path/modalias" 2>/dev/null)"
+   [ -n "$supplier_modalias" ] || supplier_modalias='<none>'
+   if [ -r "$supplier_path/of_node/compatible" ]; then
+    supplier_compatible="$(/bin/busybox tr '\\000' ',' < "$supplier_path/of_node/compatible" 2>/dev/null)"
+    supplier_compatible="${supplier_compatible%,}"
+    [ -n "$supplier_compatible" ] || supplier_compatible='<empty>'
+   fi
+  else
+   supplier_path='<missing>'
+  fi
+
+  klog "device_link depth=$depth consumer=$consumer_name supplier=$supplier_bus:$supplier_name link_status=$link_status auto_remove=$auto_remove runtime_pm=$runtime_pm sync_state_only=$sync_state_only supplier_driver=$supplier_driver supplier_waiting=$supplier_waiting supplier_status=$supplier_status supplier_modalias=$supplier_modalias supplier_compatible=$supplier_compatible path=$supplier_path"
+  klog "platform_supplier consumer=$consumer_name bus=$supplier_bus name=$supplier_name driver=$supplier_driver waiting_for_supplier=$supplier_waiting link_status=$link_status status=$supplier_status modalias=$supplier_modalias compatible=$supplier_compatible path=$supplier_path"
+
+  if [ -e "$supplier_path" ] && [ "$depth" -lt 3 ]; then
+   next_depth=$((depth + 1))
+   record_supplier_tree "$supplier_path" "$supplier_name" "$next_depth"
+  fi
+ done
+}
+
 record_usb_platform_state()
 {
  found=0
@@ -209,43 +278,12 @@ record_usb_platform_state()
    spec="${linkname#supplier:}"
    supplier_bus="${spec%%:*}"
    supplier_name="${spec#*:}"
-   supplier_path="/sys/bus/$supplier_bus/devices/$supplier_name"
-
-   supplier_driver='<none>'
-   supplier_waiting='<unavailable>'
-   supplier_status='<none>'
-   supplier_modalias='<none>'
-   supplier_compatible='<none>'
-
-   if [ -e "$supplier_path" ]; then
-    if [ -L "$supplier_path/driver" ]; then
-     supplier_driver="$(/bin/busybox readlink "$supplier_path/driver" 2>/dev/null)"
-     supplier_driver="${supplier_driver##*/}"
-    fi
-    if [ -r "$supplier_path/waiting_for_supplier" ]; then
-     supplier_waiting="$(cat "$supplier_path/waiting_for_supplier" 2>/dev/null)"
-     [ -n "$supplier_waiting" ] || supplier_waiting='<empty>'
-    fi
-    if [ -r "$supplier_path/of_node/status" ]; then
-     supplier_status="$(/bin/busybox tr -d '\\000' < "$supplier_path/of_node/status" 2>/dev/null)"
-    fi
-    supplier_modalias="$(cat "$supplier_path/modalias" 2>/dev/null)"
-    [ -n "$supplier_modalias" ] || supplier_modalias='<none>'
-    if [ -r "$supplier_path/of_node/compatible" ]; then
-     supplier_compatible="$(/bin/busybox tr '\\000' ',' < "$supplier_path/of_node/compatible" 2>/dev/null)"
-     supplier_compatible="${supplier_compatible%,}"
-     [ -n "$supplier_compatible" ] || supplier_compatible='<empty>'
-    fi
-   else
-    supplier_path='<missing>'
-   fi
-
-   klog "platform_supplier consumer=$devname bus=$supplier_bus name=$supplier_name driver=$supplier_driver waiting_for_supplier=$supplier_waiting status=$supplier_status modalias=$supplier_modalias compatible=$supplier_compatible path=$supplier_path"
    suppliers="$suppliers$supplier_bus:$supplier_name,"
   done
   [ -n "$suppliers" ] || suppliers='<none>'
   suppliers="${suppliers%,}"
   klog "platform_device suppliers name=$devname list=$suppliers"
+  record_supplier_tree "$devpath" "$devname" 1
  done
  if [ "$found" -eq 0 ]; then
   klog 'platform_device USB matches=<none>'

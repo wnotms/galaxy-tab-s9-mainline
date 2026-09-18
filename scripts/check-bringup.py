@@ -41,6 +41,8 @@ REQUIRED_INIT_MARKERS = (
     "platform_device name=",
     "waiting_for_supplier=",
     "platform_supplier consumer=",
+    "device_link depth=",
+    "link_status=",
     "manual_dwc3_bind",
 )
 
@@ -115,6 +117,8 @@ def main() -> int:
         raise RuntimeError("missing fw_devlink waiting-for-supplier diagnostics")
     if "platform_supplier consumer=" not in init_text:
         raise RuntimeError("missing supplier driver-state diagnostics")
+    if "record_supplier_tree" not in init_text or "link_status=" not in init_text:
+        raise RuntimeError("missing recursive devlink status diagnostics")
     if "try_manual_dwc3_bind" not in init_text:
         raise RuntimeError("missing manual dwc3-qcom bind diagnostic")
 

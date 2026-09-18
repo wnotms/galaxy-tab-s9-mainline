@@ -38,6 +38,7 @@ PARTITIONS = ("boot", "init_boot", "vendor_boot", "dtbo")
 MARKERS = ("G9E1301", "G9E1302", "G9E1303", "G9E1304", "G9E1305")
 USB_DIAG_RE = re.compile(
     r"(?:dwc3|\budc\b|gadget|usb0|\bncm\b|eusb|ptn3222|type-?c|configfs|"
+    r"rpmh|tcsr|GTS9WIFI: device_link|GTS9WIFI: platform_supplier|"
     r"GTS9WIFI: mount |GTS9WIFI: filesystem |GTS9WIFI: initramfs pseudo|"
     r"GTS9WIFI: mount table)",
     re.IGNORECASE,
@@ -113,6 +114,9 @@ PATTERNS = {
     "platform_device": re.compile(r"GTS9WIFI: platform_device "),
     "platform_waiting_supplier": re.compile(r"GTS9WIFI: platform_device .*waiting_for_supplier=1"),
     "platform_supplier": re.compile(r"GTS9WIFI: platform_supplier "),
+    "device_link": re.compile(r"GTS9WIFI: device_link "),
+    "device_link_blocked": re.compile(r"GTS9WIFI: device_link .*link_status=(?:dormant|not tracked|supplier unbinding)"),
+    "supplier_waiting": re.compile(r"GTS9WIFI: device_link .*supplier_waiting=1"),
     "manual_dwc3_bind": re.compile(r"GTS9WIFI: manual_dwc3_bind "),
     "manual_dwc3_defer": re.compile(r"GTS9WIFI: manual_dwc3_bind .*Resource temporarily unavailable"),
     "usb0_present": re.compile(r"GTS9WIFI: usb0 present"),
@@ -425,7 +429,9 @@ def deepest(m):
 
 def classify(m):
     result = deepest(m)
-    if m.get("platform_waiting_supplier"):
+    if m.get("device_link_blocked"):
+        result += "+SUPPLIER_LINK_BLOCKED"
+    elif m.get("platform_waiting_supplier"):
         result += "+WAITING_FOR_SUPPLIER"
     elif m.get("manual_dwc3_defer"):
         result += "+DWC3_BIND_DEFERRED"
@@ -479,8 +485,10 @@ def record_interpretation(summary):
     if m.get("usb_host_timeout"):
         return "USB gadget 已进入设备端本地就绪阶段，但主机在观察窗口内没有把 UDC state 推进到 configured；应继续分析主机枚举或物理 USB 链路。"
     if m.get("udc_bind_timeout"):
+        if m.get("device_link_blocked"):
+            return "configfs 与 USB gadget 已正常建立，但至少一条 managed supplier device-link 仍处于 dormant/not-tracked 等不可用状态；dwc3-qcom bind defer 应优先沿 device_link 递归记录定位最上游未 ready supplier。"
         if m.get("platform_waiting_supplier"):
-            return "configfs 与 USB gadget 已正常建立，但 a600000.usb 明确处于 waiting_for_supplier=1；dwc3-qcom deferred probe 发生在 supplier 依赖未就绪阶段，应依据 platform_supplier 记录定位未绑定 supplier。"
+            return "configfs 与 USB gadget 已正常建立，但 a600000.usb 明确处于 waiting_for_supplier=1；dwc3-qcom deferred probe 发生在 fwnode supplier 依赖未就绪阶段，应依据 device_link/platform_supplier 记录定位未绑定 supplier。"
         if m.get("manual_dwc3_defer"):
             return "configfs 与 USB gadget 已正常建立，a600000.usb 手动绑定 dwc3-qcom 返回 EAGAIN/EPROBE_DEFER；应结合 waiting_for_supplier 与 platform_supplier 的实际 driver 状态，区分 driver-core supplier gating 和 dwc3_qcom_probe/DWC3 core 内部 defer。"
         if m.get("manual_dwc3_bind"):
@@ -544,6 +552,7 @@ def write_test_record(rd, state, summary):
         "udc_bind_success", "udc_bind_failed", "udc_bind_timeout",
         "udc_class", "deferred_probe", "platform_driver",
         "platform_device", "platform_waiting_supplier", "platform_supplier",
+        "device_link", "device_link_blocked", "supplier_waiting",
         "manual_dwc3_bind", "manual_dwc3_defer",
         "usb0_present", "usb0_missing", "usb0_configured",
         "usb0_config_failed", "telnet_started", "telnet_failed",
@@ -766,7 +775,8 @@ def cmd_collect(args):
     for key in PATTERNS:
         found = m[key]
         lines.append(f"[{key}] count={len(found)}")
-        for item in found[-5:]:
+        limit = 50 if key in {"platform_supplier", "device_link"} else 5
+        for item in found[-limit:]:
             lines.append(f"  L{item['line']}: {item['text']}")
     lines.append(f"[usb_diagnostics] count={len(usb_diag)}")
     for item in usb_diag[-20:]:
