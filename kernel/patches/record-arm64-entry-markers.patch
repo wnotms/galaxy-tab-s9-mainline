@@ -13,7 +13,10 @@ x19 as enabled, the pre-MMU markers are deliberately skipped.
 diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
 --- a/arch/arm64/kernel/head.S
 +++ b/arch/arm64/kernel/head.S
-@@ -85,49 +85,129 @@
+@@ -82,54 +82,134 @@
+ 	 *  x20        primary_entry() .. __primary_switch()    CPU boot mode
+ 	 *  x21        primary_entry() .. start_kernel()        FDT pointer passed at boot in x0
+ 	 */
 -SYM_CODE_START(primary_entry)
 -	bl	record_mmu_state
 -	bl	preserve_boot_args
@@ -62,7 +65,6 @@ diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
 -	b	__primary_switch
 -SYM_CODE_END(primary_entry)
 -
--	__INIT
 +SYM_CODE_START(primary_entry)
 +	bl	record_mmu_state
 +#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
@@ -191,4 +193,6 @@ diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
 +SYM_CODE_END(gts9wifi_entry_marker_append)
 +#endif
 +
-+	__INIT
+ 	__INIT
+ SYM_CODE_START_LOCAL(record_mmu_state)
+ 	mrs	x19, CurrentEL
