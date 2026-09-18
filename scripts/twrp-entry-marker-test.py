@@ -77,7 +77,25 @@ PATTERNS = {
     "initramfs_busybox": re.compile(r"GTS9WIFI: initramfs busybox links ready"),
     "initramfs_devtmpfs": re.compile(r"GTS9WIFI: initramfs devtmpfs mounted"),
     "initramfs_pseudo": re.compile(r"GTS9WIFI: initramfs pseudo filesystems ready"),
-    "initramfs_ready": re.compile(r"initramfs ready; USB NCM address"),
+    "configfs_mounted": re.compile(r"GTS9WIFI: configfs mounted"),
+    "configfs_failed": re.compile(r"GTS9WIFI: configfs mount failed"),
+    "gadget_configured": re.compile(r"GTS9WIFI: USB gadget configured"),
+    "udc_no_controller": re.compile(r"GTS9WIFI: UDC no controller yet"),
+    "udc_candidate": re.compile(r"GTS9WIFI: UDC candidate controller="),
+    "udc_bind_success": re.compile(r"GTS9WIFI: UDC bind success controller="),
+    "udc_bind_failed": re.compile(r"GTS9WIFI: UDC bind (?:failed|verification failed)"),
+    "udc_bind_timeout": re.compile(r"GTS9WIFI: UDC bind timeout"),
+    "usb0_present": re.compile(r"GTS9WIFI: usb0 present"),
+    "usb0_missing": re.compile(r"GTS9WIFI: usb0 missing after UDC bind"),
+    "usb0_configured": re.compile(r"GTS9WIFI: usb0 configured address="),
+    "usb0_config_failed": re.compile(r"GTS9WIFI: usb0 configuration failed"),
+    "telnet_started": re.compile(r"GTS9WIFI: telnetd started port="),
+    "telnet_failed": re.compile(r"GTS9WIFI: telnetd start failed"),
+    "usb_local_ready": re.compile(r"GTS9WIFI: USB NCM local ready controller="),
+    "udc_state": re.compile(r"GTS9WIFI: UDC state controller=.* state="),
+    "usb_host_configured": re.compile(r"GTS9WIFI: USB host configured controller="),
+    "usb_host_timeout": re.compile(r"GTS9WIFI: USB host configuration timeout"),
+    "initramfs_ready": re.compile(r"initramfs ready; USB NCM host configured;"),
     "initcall_level": re.compile(r"GTS9WIFI: initcall level .* (?:begin|end)"),
     "initcall_debug": re.compile(r"(?:calling  .* @ |initcall .* returned )"),
     "linux": re.compile(r"Linux version .*gts9wifi-bringup"),
@@ -89,7 +107,13 @@ PATTERNS = {
 }
 
 STAGES = (
-    ("initramfs_ready", "INITRAMFS_USB_READY"),
+    ("usb_host_configured", "USB_HOST_CONFIGURED"),
+    ("initramfs_ready", "INITRAMFS_USB_HOST_READY"),
+    ("usb_local_ready", "USB_NCM_LOCAL_READY"),
+    ("usb0_configured", "USB0_CONFIGURED"),
+    ("udc_bind_success", "UDC_BOUND"),
+    ("gadget_configured", "USB_GADGET_CONFIGURED"),
+    ("configfs_mounted", "CONFIGFS_MOUNTED"),
     ("initramfs_pseudo", "INITRAMFS_PSEUDO_FS_READY"),
     ("initramfs_devtmpfs", "INITRAMFS_DEVTMPFS_MOUNTED"),
     ("initramfs_busybox", "INITRAMFS_BUSYBOX_LINKS_READY"),
@@ -199,6 +223,14 @@ def verify_repo():
     init_text = (ROOT / "initramfs/init").read_text()
     if "GTS9WIFI: initramfs init entered" not in init_text:
         raise RuntimeError("missing earliest initramfs userspace marker")
+    for marker in (
+        "GTS9WIFI: UDC bind success",
+        "GTS9WIFI: USB NCM local ready",
+        "GTS9WIFI: USB host configured",
+        "GTS9WIFI: USB host configuration timeout",
+    ):
+        if marker not in init_text:
+            raise RuntimeError("missing USB diagnostic marker: " + marker)
     config = (ROOT / "kernel/config/gts9wifi-bringup.config").read_text()
     if "CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG=y" not in config:
         raise RuntimeError("persistent sec-log config is required")
@@ -363,6 +395,12 @@ def deepest(m):
 
 def classify(m):
     result = deepest(m)
+    if m.get("udc_bind_timeout"):
+        result += "+UDC_BIND_TIMEOUT"
+    elif m.get("usb_host_timeout"):
+        result += "+USB_HOST_ENUM_TIMEOUT"
+    elif m.get("usb0_config_failed"):
+        result += "+USB0_CONFIG_FAILED"
     if m["fatal_noc"]:
         result += "+FATAL_NOC"
     elif m["user_reset"]:
@@ -382,8 +420,18 @@ def last_match(summary, key):
 
 def record_interpretation(summary):
     m = summary.get("matches", {})
+    if m.get("usb_host_configured"):
+        return "USB gadget 已绑定 UDC，usb0 已在设备端配置，并且 UDC state 达到 configured；主机已经完成 USB 枚举。"
+    if m.get("usb_host_timeout"):
+        return "USB gadget 已进入设备端本地就绪阶段，但主机在观察窗口内没有把 UDC state 推进到 configured；应继续分析主机枚举或物理 USB 链路。"
+    if m.get("udc_bind_timeout"):
+        return "initramfs 已运行到 USB gadget 配置，但没有在等待窗口内成功绑定任何 UDC；应检查 DWC3/UDC 驱动 probe 与设备树。"
+    if m.get("usb_local_ready"):
+        return "USB gadget 已成功绑定 UDC，且设备端 usb0/NCM 本地栈已配置；仍需结合 UDC state 判断主机枚举是否完成。"
+    if m.get("udc_bind_success"):
+        return "USB gadget 已成功绑定 UDC；后续应检查 usb0 配置与主机枚举状态。"
     if m.get("initramfs_ready"):
-        return "已进入 initramfs 用户态并完成 USB NCM 初始化。"
+        return "已进入 initramfs 用户态并完成 USB NCM 主机枚举。"
     if m.get("initramfs_pseudo"):
         return "已进入 initramfs 用户态并完成基础伪文件系统挂载，后续应继续定位 USB gadget/UDC 初始化。"
     if m.get("initramfs_devtmpfs"):
@@ -424,7 +472,13 @@ def write_test_record(rd, state, summary):
         "basic_after", "rdinit_access", "rdinit_before_exec",
         "rdinit_after_exec", "rdinit_exec_success", "rdinit_exec_failed",
         "initramfs_entered", "initramfs_busybox", "initramfs_devtmpfs",
-        "initramfs_pseudo", "initramfs_ready", "fatal_noc", "user_reset",
+        "initramfs_pseudo", "configfs_mounted", "configfs_failed",
+        "gadget_configured", "udc_no_controller", "udc_candidate",
+        "udc_bind_success", "udc_bind_failed", "udc_bind_timeout",
+        "usb0_present", "usb0_missing", "usb0_configured",
+        "usb0_config_failed", "telnet_started", "telnet_failed",
+        "usb_local_ready", "udc_state", "usb_host_configured",
+        "usb_host_timeout", "initramfs_ready", "fatal_noc", "user_reset",
         "uefi_end",
     )
     record = {
