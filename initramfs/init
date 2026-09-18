@@ -83,8 +83,11 @@ else
   echo 'GTS9WIFI: usb0 missing after UDC bind' > /dev/kmsg 2>/dev/null || true
  fi
 
+ usb_local_ready=0
  if ifconfig usb0 172.16.71.1 netmask 255.255.255.0 up; then
+  usb_local_ready=1
   echo 'GTS9WIFI: usb0 configured address=172.16.71.1' > /dev/kmsg 2>/dev/null || true
+  echo "GTS9WIFI: USB NCM local ready controller=$udc" > /dev/kmsg 2>/dev/null || true
   # Diagnostic shell reachable only over the directly attached USB link.
   # No authentication: use this RAM-only image for development, not deployment.
   if telnetd -b 172.16.71.1 -p 23 -l /bin/sh; then
@@ -96,13 +99,11 @@ else
   echo 'GTS9WIFI: usb0 configuration failed' > /dev/kmsg 2>/dev/null || true
  fi
 
- echo "GTS9WIFI: USB NCM local ready controller=$udc" > /dev/kmsg 2>/dev/null || true
-
  state_file="/sys/class/udc/$udc/state"
  last_state=''
  host_configured=0
  j=0
- while [ "$j" -lt 60 ]; do
+ while [ "$j" -lt 45 ]; do
   state="$(cat "$state_file" 2>/dev/null)"
   [ -n "$state" ] || state='unavailable'
   if [ "$state" != "$last_state" ]; then
