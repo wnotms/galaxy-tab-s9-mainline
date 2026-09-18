@@ -95,8 +95,8 @@ def main() -> int:
         "mount_checked devtmpfs devtmpfs devtmpfs /dev",
         "mount_checked proc proc proc /proc",
         "mount_checked sysfs sysfs sysfs /sys",
-        "GTS9WIFI: filesystem available name=",
-        "GTS9WIFI: mount table target=",
+        "filesystem available name=",
+        "mount table target=",
         "CONFIGFS_ROOT='/config'",
     ):
         if required not in init_text:
