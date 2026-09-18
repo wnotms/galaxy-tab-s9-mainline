@@ -1,0 +1,140 @@
+Subject: [PATCH] soc: qcom: register SM-X710 persistent console before SMP
+
+SM-X710 bring-up diagnostic; keep the existing ring and WB mapping.
+
+diff --git a/drivers/soc/qcom/samsung-gts9wifi-sec-log.c b/drivers/soc/qcom/samsung-gts9wifi-sec-log.c
+--- a/drivers/soc/qcom/samsung-gts9wifi-sec-log.c
++++ b/drivers/soc/qcom/samsung-gts9wifi-sec-log.c
+@@ -10,10 +10,10 @@
+ 
+ #include <linux/console.h>
+ #include <linux/io.h>
+-#include <linux/module.h>
++#include <linux/init.h>
++#include <linux/sizes.h>
+ #include <linux/of.h>
+ #include <linux/of_reserved_mem.h>
+-#include <linux/platform_device.h>
+ 
+ #define SEC_LOG_MAGIC	0x4d474f4c /* "LOGM" on little-endian ARM64 */
+ 
+@@ -31,6 +31,7 @@
+ 	struct console console;
+ };
+ 
++static struct gts9wifi_sec_log sec_log_storage;
+ static struct gts9wifi_sec_log *sec_log;
+ 
+ static void notrace gts9wifi_sec_log_write(struct console *console,
+@@ -68,34 +69,52 @@
+ 	WRITE_ONCE(log->header->previous_index, index);
+ }
+ 
+-static int gts9wifi_sec_log_probe(struct platform_device *pdev)
++/*
++ * console_init() runs after MM initialization, before pre-SMP initcalls and
++ * platform-device population. Read the DT reservation directly so faults in
++ * those phases can leave a recovery-readable log without a platform probe.
++ */
++static int __init gts9wifi_sec_log_console_init(void)
+ {
+-	struct device_node *memory_node;
++	struct device_node *node, *memory_node;
+ 	struct reserved_mem *reserved;
+-	struct gts9wifi_sec_log *log;
++	struct gts9wifi_sec_log *log = &sec_log_storage;
+ 	void *memory;
++	static const char marker[] = "\nGTS9WIFI: console_initcall reached\n";
+ 
+-	memory_node = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
+-	if (!memory_node)
+-		return dev_err_probe(&pdev->dev, -EINVAL,
+-				     "missing memory-region\n");
++	if (!of_machine_is_compatible("samsung,gts9wifi"))
++		return -ENODEV;
++
++	node = of_find_compatible_node(NULL, NULL,
++				      "samsung,gts9wifi-sec-kernel-log");
++	if (!node)
++		return -ENODEV;
++	if (!of_device_is_available(node)) {
++		of_node_put(node);
++		return -ENODEV;
++	}
++	memory_node = of_parse_phandle(node, "memory-region", 0);
++	of_node_put(node);
++	if (!memory_node) {
++		pr_err("gts9wifi-sec-log: missing memory-region\n");
++		return -EINVAL;
++	}
+ 
+ 	reserved = of_reserved_mem_lookup(memory_node);
+ 	of_node_put(memory_node);
+-	if (!reserved || reserved->size <= sizeof(struct sec_log_header))
+-		return dev_err_probe(&pdev->dev, -EINVAL,
+-				     "invalid sec_log_buf reservation\n");
++	/* Only write the SM-X710 reservation validated in the owner snapshot. */
++	if (!reserved || reserved->base != 0x880200000ULL ||
++	    reserved->size != SZ_2M) {
++		pr_err("gts9wifi-sec-log: unexpected sec_log_buf reservation\n");
++		return -EINVAL;
++	}
+ 
+-	log = devm_kzalloc(&pdev->dev, sizeof(*log), GFP_KERNEL);
+-	if (!log)
++	memory = memremap(reserved->base, reserved->size, MEMREMAP_WB);
++	if (!memory) {
++		pr_err("gts9wifi-sec-log: cannot map sec_log_buf\n");
+ 		return -ENOMEM;
+-
+-	memory = devm_memremap(&pdev->dev, reserved->base, reserved->size,
+-			       MEMREMAP_WB);
+-	if (IS_ERR(memory))
+-		return dev_err_probe(&pdev->dev, PTR_ERR(memory),
+-				     "cannot map sec_log_buf\n");
+-
++	}
++	/* Built-in console: this mapping and static state live for the boot. */
+ 	log->header = memory;
+ 	log->data_size = reserved->size - sizeof(*log->header);
+ 
+@@ -115,34 +134,11 @@
+ 	log->console.index = -1;
+ 
+ 	sec_log = log;
++	/* Preserve a reachability marker even before register_console replay. */
++	gts9wifi_sec_log_write(&log->console, marker, sizeof(marker) - 1);
+ 	register_console(&log->console);
+-	platform_set_drvdata(pdev, log);
+-
+-	dev_info(&pdev->dev, "persistent console at %pa (%zu bytes)\n",
+-		 &reserved->base, (size_t)reserved->size);
++	pr_info("gts9wifi-sec-log: pre-SMP persistent console at %pa (%zu bytes)\n",
++		&reserved->base, (size_t)reserved->size);
+ 	return 0;
+ }
+-
+-static void gts9wifi_sec_log_remove(struct platform_device *pdev)
+-{
+-	struct gts9wifi_sec_log *log = platform_get_drvdata(pdev);
+-
+-	unregister_console(&log->console);
+-	sec_log = NULL;
+-}
+-
+-static const struct of_device_id gts9wifi_sec_log_of_match[] = {
+-	{ .compatible = "samsung,gts9wifi-sec-kernel-log" },
+-	{ }
+-};
+-MODULE_DEVICE_TABLE(of, gts9wifi_sec_log_of_match);
+-
+-static struct platform_driver gts9wifi_sec_log_driver = {
+-	.probe = gts9wifi_sec_log_probe,
+-	.remove = gts9wifi_sec_log_remove,
+-	.driver = {
+-		.name = "gts9wifi-sec-kernel-log",
+-		.of_match_table = gts9wifi_sec_log_of_match,
+-	},
+-};
+-builtin_platform_driver(gts9wifi_sec_log_driver);
++console_initcall(gts9wifi_sec_log_console_init);

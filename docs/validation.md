@@ -25,3 +25,5 @@
 未完成的验证：新版 ABL 修补后的有效 DTB、完整主线启动、USB 枚举、microSD 读卡、完整 dt-schema 校验。原生显示、触控、S Pen、WLAN、音频、充电及桌面功能仍需移植和实机验证。
 
 第三版移除三个预建的 ABL 保留区节点；默认 DTB 检查要求这些节点及范围不存在，仍覆盖 stock 的 39 个固定保留区。`--abl-updated` 模式要求三个 ABL 节点存在且地址正确，模拟添加后无重叠；两个模式的错误输入均被拒绝。重新构建、四镜像检查和 `make check` 通过。[第三次实机测试](boot-test-20260918-third.md)不再出现第二次的三个 ABL 添加／保留错误，但没有本次主线 printk 或 initcall 跟踪，仍未枚举 USB；原四个启动分区已恢复并回读校验。
+
+第四版新增本地 `register-sec-log-before-smp.patch`，在 `console_initcall` 注册静态持久 console，读取并校验 DT 保留区，写入独立到达标记。全部五个补丁在干净固定源码上应用通过，与实际编译文件逐字节一致；重新构建、四镜像验证器和 `make check` 通过。链接表确认注册函数位于 console initcall 区间；[第四次实机测试](boot-test-20260918-fourth.md)已写入重启，未枚举 USB，日志及恢复待完成。

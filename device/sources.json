@@ -28,5 +28,12 @@
       "local_sha256": "60d89abdd323fa3d06d2f1f41ee667f6a45069681ca67add26cbea2db195d638",
       "adaptation": "Added required REGMAP_I2C Kconfig selection: Ultra patch failed to link in a minimal kernel"
     }
+  ],
+  "local_patches": [
+    {
+      "path": "kernel/patches/register-sec-log-before-smp.patch",
+      "sha256": "14f9973bfef545b44d208ad7c8344d3f94ab1e839578fab4f7782db4bb6475cc",
+      "adaptation": "Register the existing SM-X710 persistent console through console_initcall before SMP/platform init; static state, DT identity/address guards, direct reachability marker; unchanged ring writes and WB mapping"
+    }
   ]
 }

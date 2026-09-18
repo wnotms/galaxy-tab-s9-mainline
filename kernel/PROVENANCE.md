@@ -16,6 +16,12 @@
 
 来源 SHA256、修改后 SHA256 和修改说明记录在 `device/sources.json`。补丁头中保留的 SM-X910 叙述描述原参考机型，不能解释为 S9 已实测支持。
 
+## 本地诊断补丁
+
+`register-sec-log-before-smp.patch` 是本仓库新增的 GPL-2.0-only 修改，按顺序应用在上述四个导入补丁之后。第四次测试将日志注册从 platform probe 移到 `console_initcall`，使用静态状态直接读取 DT 保留区；限制为 S9 compatible 和快照中确认的 `0x880200000` / 2 MiB，并写入到达标记。环形缓冲写入算法、previous_index 更新和 WB 映射方式保持不变。SHA256 记录在 `device/sources.json` 的 `local_patches`。
+
+该时机仍晚于 `setup_arch`、MM 和 IRQ 初始化，不能覆盖所有最早期故障；需要实机回收日志验证效果。
+
 ## 实机资料
 
 使用用户拥有的 SM-X710，通过 TWRP ADB 只读提取。来源标识、启动固件、分区镜像哈希和所用 overlay 信息记录在 `device/boot-profile.json`；公开的硬件属性记录在 `device/stock-hardware.json`。完整镜像、命令脚本、设备日志、校准及身份数据仅保存在被 Git 忽略的目录中，保留其原有权利，不依据本仓库的 MIT/BSD 许可证再分发。
