@@ -3,6 +3,7 @@
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
+python3 scripts/check-patch-series.py --quiet
 PIN=$(python3 -c 'import json; print(json.load(open("device/sources.json"))["linux_commit"])')
 TAG=$(python3 -c 'import json; print(json.load(open("device/sources.json"))["linux_tag"])')
 CACHE="$ROOT/work/linux-mainline"
