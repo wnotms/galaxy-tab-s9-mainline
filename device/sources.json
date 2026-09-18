@@ -44,6 +44,11 @@
       "path": "kernel/patches/record-sec-log-setup-arch-checkpoints.patch",
       "sha256": "06036a36e020c8f53cc714842cfb6bed5600d7684682a9d57c9b9024280f60ac",
       "adaptation": "Five CONFIG-gated setup_arch checkpoints after FDT, memblock, paging, unflatten and bootmem; validate S9 flat DT and exact sec-log reg; temporary 4 KiB mapping and PoC clean; preserve early markers on full-console handover"
+    },
+    {
+      "path": "kernel/patches/find-sec-log-by-validated-flat-dt-range.patch",
+      "sha256": "c919ac0a4ef527e016482562a044af0feeebce41a7ac7b8d94835c2ab4b6bcec",
+      "adaptation": "S9-only early diagnostic finds exact sec_log range by reg instead of node name; records flat-DT root compatible result without blocking it; preserves range guard and PoC cleans"
     }
   ]
 }

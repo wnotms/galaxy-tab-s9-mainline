@@ -38,3 +38,5 @@
 - 可选 mtools/erofs-utils：固定 Ubuntu amd64 包和 SHA256；版权文件与二进制保留在本地缓存，不提交。
 
 此仓库独立编写的 Android v4 封装器按 [AOSP boot header](https://source.android.com/docs/core/architecture/bootloader/boot-image-header)和 [vendor boot](https://source.android.com/docs/core/architecture/partitions/vendor-boot-partitions)的字段布局实现；使用 AOSP avbtool 检查最终哈希。它不是三星签名或 GKI 认证工具。
+
+`find-sec-log-by-validated-flat-dt-range.patch` 是第七次测试新增的 GPL-2.0-only 本地诊断。在 S9 专用构建中，早期路径遍历 reserved-memory 的子节点，保留精确 `0x880200000` / 2 MiB reg 检查，取消节点名称和根 compatible 的阻断条件，并记录 compatible 的实际检查结果。该假设尚需实机验证；仍无法覆盖保留区匹配或映射之前的失败，也不能保证复位后日志保留。正式 console 的 S9 身份检查不变。哈希记录在 `local_patches`。

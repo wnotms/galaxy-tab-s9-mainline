@@ -12,6 +12,7 @@ bundle: kernel initramfs tools
 check:
 	bash -n scripts/build-kernel.sh
 	sh -n initramfs/init
+	sh -n scripts/twrp-restore-original.sh
 	python3 -m unittest discover -s tests -v
 clean:
 	rm -rf work/kernel-build artifacts/kernel artifacts/initramfs artifacts/boot-bundle

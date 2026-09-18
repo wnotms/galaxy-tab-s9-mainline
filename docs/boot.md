@@ -59,3 +59,5 @@ make check
 ```
 
 验证器检查实际打包的 DTB、两份 DTB 一致性、S9 carveout 覆盖及无重叠、Android v4 地址和尺寸、平台 ramdisk 表、legacy LZ4 解压和四份 AVB 哈希。未运行完整的 `dtbs_check` binding schema 校验；当前 DTS 的三星选择属性和补丁中的 repeater 属性仍是实验接口。
+
+四分区恢复脚本及 microSD 恢复包使用方法见 [TWRP 恢复说明](twrp-restore.md)。

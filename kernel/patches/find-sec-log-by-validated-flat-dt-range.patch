@@ -1,0 +1,78 @@
+Subject: [PATCH] soc: qcom: diagnose S9 flat-DT identity without name gates
+
+S9-only diagnostic: retain exact reserved range validation, search by reg and
+record root compatible status rather than silently rejecting its mismatch.
+
+diff --git a/drivers/soc/qcom/samsung-gts9wifi-sec-log.c b/drivers/soc/qcom/samsung-gts9wifi-sec-log.c
+--- a/drivers/soc/qcom/samsung-gts9wifi-sec-log.c
++++ b/drivers/soc/qcom/samsung-gts9wifi-sec-log.c
+@@ -52,35 +52,56 @@
+ 	WRITE_ONCE(header->index, 0);
+ }
+ 
++/* Names and root compatible strings may be rewritten by firmware.
++ * This S9-only build still requires the exact captured reserved-memory range.
++ */
++static int __init gts9wifi_sec_log_find_range(unsigned long node,
++					   const char *name, void *data)
++{
++	const __be32 *reg;
++	int length;
++
++	reg = of_get_flat_dt_prop(node, "reg", &length);
++	if (reg && length == 4 * sizeof(*reg) &&
++	    be32_to_cpu(reg[0]) == 8 && be32_to_cpu(reg[1]) == 0x80200000 &&
++	    be32_to_cpu(reg[2]) == 0 && be32_to_cpu(reg[3]) == SZ_2M) {
++		*(bool *)data = true;
++		return 1;
++	}
++	return 0;
++}
++
+ /* Only a single page is needed before normal mappings/allocators exist. */
+ void __init gts9wifi_sec_log_early_checkpoint(const char *marker)
+ {
+ 	struct sec_log_header *header;
+-	const __be32 *reg;
++	bool found = false;
++	const char *identity;
+ 	unsigned long root = of_get_flat_dt_root();
+-	int parent, node, length;
++	int parent;
+ 	size_t count = strlen(marker);
+ 	u32 index;
+ 
+-	if (!of_flat_dt_is_compatible(root, "samsung,gts9wifi"))
+-		return;
+ 	parent = of_get_flat_dt_subnode_by_name(root, "reserved-memory");
+ 	if (parent < 0)
+ 		return;
+-	node = of_get_flat_dt_subnode_by_name(parent, "sec-log@880200000");
+-	if (node < 0)
+-		return;
+-	reg = of_get_flat_dt_prop(node, "reg", &length);
+-	if (!reg || length != 4 * sizeof(*reg) ||
+-	    be32_to_cpu(reg[0]) != 8 || be32_to_cpu(reg[1]) != 0x80200000 ||
+-	    be32_to_cpu(reg[2]) != 0 || be32_to_cpu(reg[3]) != SZ_2M)
+-		return;
++	of_scan_flat_dt_subnodes(parent, gts9wifi_sec_log_find_range, &found);
++	if (!found)
++		return;
++	identity = of_flat_dt_is_compatible(root, "samsung,gts9wifi") ?
++		"GTS9WIFI: flat_dt compatible=yes range=validated\n" :
++		"GTS9WIFI: flat_dt compatible=no range=validated\n";
+ 
+ 	header = early_memremap(0x880200000ULL, SZ_4K);
+ 	if (!header)
+ 		return;
+-	if (!sec_log_early_started)
++	if (!sec_log_early_started) {
+ 		gts9wifi_sec_log_start(header);
++		memcpy(header->data, identity, strlen(identity));
++		dcache_clean_poc((unsigned long)header->data,
++				 (unsigned long)header->data + strlen(identity));
++		WRITE_ONCE(header->index, strlen(identity));
++	}
+ 	index = READ_ONCE(header->index);
+ 	if (index > SZ_4K - sizeof(*header) ||
+ 	    count > SZ_4K - sizeof(*header) - index)

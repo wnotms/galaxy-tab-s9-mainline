@@ -85,3 +85,5 @@ python3 scripts/stage-stock-files.py "$SNAP" --vendor
 ABL 交接主线内核及 TWRP 回收持久日志已验证；下一步利用 `initcall_debug` 定位早期 NoC 故障，再验证 USB NCM、SD，随后适配显示与输入。S9 与 Ultra 的差异、实机映射和具体推进顺序见 [硬件说明](docs/hardware.md)及 [完整移植方案](PORTING_PLAN.zh-CN.md)。
 
 本次检查结果见 [验证记录](docs/validation.md)。来源、补丁调整和许可证见 [kernel/PROVENANCE.md](kernel/PROVENANCE.md)与 [LICENSE](LICENSE)。Linux 源码和工具缓存不提交到此仓库；默认分支为 `main`。
+
+TWRP 四分区恢复包和独立脚本见 [恢复说明](docs/twrp-restore.md)。第七次测试将早期日志查找改为精确保留区 reg 匹配，记录 compatible 结果；进度见 [第七次测试](docs/boot-test-20260918-seventh.md)。

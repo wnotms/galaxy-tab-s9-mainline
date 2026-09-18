@@ -5,3 +5,4 @@ configure-nxp-ptn3222-from-dt.patch
 register-sec-log-before-smp.patch
 clean-sec-log-cache-before-reset.patch
 record-sec-log-setup-arch-checkpoints.patch
+find-sec-log-by-validated-flat-dt-range.patch
