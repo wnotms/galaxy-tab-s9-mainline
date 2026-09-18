@@ -81,18 +81,32 @@ python3 scripts/build-boot-bundle.py \
 python3 scripts/verify-boot-bundle.py artifacts/test11
 ```
 
-## 实机测试：已刷写，等待冷启动观察
+## 实机测试结果：恢复模式启动，INCONCLUSIVE
 
 用户随后明确回复“测试”，授权本次刷写及启动验证。已保存刷写前 pstore、last_kmsg 和 Windows USB／网络基线，并将候选四镜像归档到 `artifacts/boot-tests/test11-gpio-sm-x710/tested-bundle/`。
 
-TWRP 新一轮预检通过，原六个分区大小及哈希匹配，四个恢复备份验证通过。boot/init_boot/vendor_boot/dtbo 已刷入并逐一回读确认候选哈希；vbmeta/recovery 校验未变。未执行普通 reboot，而是执行 `adb shell reboot -p`，返回码 0。已请用户断开 USB、确认完全关机、等待 15 秒，再按侧键正常开机并重新连接 USB。命令返回不能单独证明实际冷启动完成。
+TWRP 新一轮预检通过，原六个分区大小及哈希匹配，四个恢复备份验证通过。boot/init_boot/vendor_boot/dtbo 已刷入并逐一回读确认候选哈希；vbmeta/recovery 校验未变。未执行普通 reboot，而是执行 `adb shell reboot -p`，返回码 0。随后用户报告等待 15 秒后开机，未按音量键，设备自动进入 TWRP。按用户描述记为 cold；主机没有独立验证断电状态，是否先发生自动重启及进入恢复的耗时未知。
 
-- Boot type：unknown；请求 cold，等待用户确认实际操作。
-- Screen / reboot behavior / time before reboot：等待观察。
-- USB：已保存刷前基线；等待本次启动后观察。
-- pstore / last_kmsg：已保存刷前日志，启动后日志尚待采集；原计划返回 TWRP 后优先保存 pstore，再取 last_kmsg。
-- Fatal NoC：Unknown；Secure GPIO fix 尚未确认。
-- Result：PENDING。
-- 分区状态：候选四镜像仍在设备上，尚未恢复；原分区恢复套件保留在 microSD。
+返回 TWRP 后优先保存 pstore 的目录清单并拉取文件，再读取 Samsung last_kmsg、dmesg、cmdline、恢复日志与六分区哈希。pstore 为空，拉取 0 文件；日志采集时四分区仍匹配 GPIO 候选，故已排除此次候选未写入的问题。
 
-本次操作记录在 `artifacts/boot-tests/test11-gpio-sm-x710/`，flash/report.json 保存预检与各项写入／回读证据，boot-operation.json 保存关机请求时间。构建时的 manifest 作为输入记录保留，实时状态以本次操作记录为准。无新内核日志时只能判为 INCONCLUSIVE，不能据此证明修复或未进入内核，也不自动撤回 GPIO 属性。
+本次 last_kmsg 共 2097136 字节，SHA256 `43779b8f730866b974045eee6243f20ca7657a778d86b24220cd8551fcd2d333`，与刷前不同。它包含旧 TWRP 的关机记录及一段 ABL 恢复模式启动记录：
+
+```text
+PARAM Flag is PARAM_BOOT_RECOVERY_ENTER:
+Booting Into Recovery Mode
+BootMode = 2
+Requested Partition: recovery
+```
+
+当前 TWRP 的 cmdline 也包含 `androidboot.boot_recovery=1`。所见 ABL 启动段选择的是 recovery，没有 Test10 主线的 `rdinit=/init`，没有新主线内核版本、GTS9WIFI 检查点或 Fatal NoC 字符串。恢复模式标志的设置来源尚未确定；这段记录支持启动路径受恢复选择影响，不能据此断言从关机到本次 TWRP 之间绝未尝试过主线。旧日志可能保留，日志哈希变化也不等于 GPIO 候选运行。
+
+- Boot type：cold（用户报告等待 15 秒且未按音量键）。
+- Screen：自动进入 TWRP；是否先自动重启及耗时未知。
+- USB：返回 TWRP 后 ADB 可用；没有捕获主线 USB 观察窗口，不能把 TWRP USB 当作主线成功。
+- pstore：空；last_kmsg 已保存，新主线运行未证实，STALE LOG POSSIBLE。
+- Fatal NoC：Unknown；日志未见该字符串，不能证明 NoC 已修复。
+- Result：INCONCLUSIVE；本次没有取得可评估 GPIO 修复效果的主线运行证据。
+
+采集后使用 microSD 上的独立恢复脚本恢复原 boot/init_boot/vendor_boot/dtbo；每个分区回读通过，再独立核对六分区哈希与刷前完全一致，vbmeta/recovery 校验未变。设备留在 TWRP，未再次重启。GPIO 属性保留，不根据无新内核日志自动撤回。
+
+完整证据保存在 `artifacts/boot-tests/test11-gpio-sm-x710/`：flash/report.json、boot-operation.json、recovery-before/、recovery-after/、restore/report.json 和 result.json。构建 manifest 保留为输入记录，实时结果以本次 result.json 为准。下一次实验应先核实并记录正常启动选择，避免 recovery 参数标志使 GPIO 测试再次无效；不直接修改未确认布局的 Samsung param 分区。

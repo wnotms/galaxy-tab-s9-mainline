@@ -38,4 +38,4 @@
 
 第十次只移除 initcall_debug，内核、DTB、initramfs 及 boot / init_boot / dtbo 与第八次一致。vendor_boot 的正文除命令行字段外也一致。四镜像检查和 TWRP 预检通过，四个分区已刷写回读并重启，Windows 未观察到 USB；回到 TWRP 后日志确认参数已移除，但没有主线版本或诊断标记。日志已归档，原四分区已恢复，最终六个分区哈希与原分区匹配，设备留在 TWRP。问题尚未修复。
 
-按用户 test11.md 构建 GPIO 36–39 保留候选，仅改变 Test10 基线 TLMM 的 gpio-reserved-ranges。原内核／配置和 initramfs 复用，最终 vendor_boot DTB 已核对，四镜像检查、全树单属性差异及篡改拒绝检查通过。用户随后授权测试，四分区已刷入并回读验证，vbmeta/recovery 校验未变，关机命令返回成功；等待用户冷启动观察与启动后日志，原分区尚未恢复，不能判定 NoC 已修复。见 [GPIO Test11](boot-test-20260918-eleventh.md)。
+按用户 test11.md 构建 GPIO 36–39 保留候选，仅改变 Test10 基线 TLMM 的 gpio-reserved-ranges。原内核／配置和 initramfs 复用，最终 vendor_boot DTB 已核对，四镜像检查、全树单属性差异及篡改拒绝检查通过。用户随后授权冷启动测试，四分区写入／回读通过，但自动进入 TWRP；ABL 记录 PARAM_BOOT_RECOVERY_ENTER 并选择 recovery。优先保存的 pstore 为空，last_kmsg 无新主线日志，结果 INCONCLUSIVE，NoC 状态未知。原四分区已恢复且六分区哈希匹配，设备留在 TWRP。见 [GPIO Test11](boot-test-20260918-eleventh.md)。

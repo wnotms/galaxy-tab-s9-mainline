@@ -88,4 +88,4 @@ ABL 交接主线内核及 TWRP 回收持久日志已验证；下一步利用 `in
 
 TWRP 四分区恢复包和独立脚本见 [恢复说明](docs/twrp-restore.md)。最新三次修复与对照结果见 [第十次测试](docs/boot-test-20260918-tenth.md)。
 
-按用户 test11.md 准备的 [GPIO 36–39 保留候选](docs/boot-test-20260918-eleventh.md) 已构建和验证，复用 Test10 内核，产物为 artifacts/test11/。用户授权测试后，本候选四分区已刷入并回读验证，关机命令成功返回；等待用户冷启动及观察，尚未恢复原分区，不能视为 NoC 修复已确认。
+按用户 test11.md 准备的 [GPIO 36–39 保留候选](docs/boot-test-20260918-eleventh.md) 已构建和验证，复用 Test10 内核，产物为 artifacts/test11/。用户授权冷启动测试后设备自动进入 TWRP，ABL 记录 PARAM_BOOT_RECOVERY_ENTER 并选择 recovery，无新主线日志，结果 INCONCLUSIVE；原四分区已恢复且六分区哈希核对通过，不能视为 NoC 修复已确认。
