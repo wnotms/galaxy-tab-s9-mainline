@@ -7,7 +7,7 @@ failure when the initramfs itself has not yet emitted a userspace marker.
 diff --git a/init/main.c b/init/main.c
 --- a/init/main.c
 +++ b/init/main.c
-@@ -1588,13 +1588,16 @@
+@@ -1588,10 +1588,13 @@
  	if (ramdisk_execute_command) {
  		pr_info("GTS9WIFI: kernel_init before_rdinit_exec path=%s\n",
  			ramdisk_execute_command);
