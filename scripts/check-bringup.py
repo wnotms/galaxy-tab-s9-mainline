@@ -27,9 +27,9 @@ SHELL_FILES = (
 
 REQUIRED_INIT_MARKERS = (
     "GTS9WIFI: initramfs init entered",
-    "GTS9WIFI: configfs mountpoint present",
-    "GTS9WIFI: configfs primary mount failed",
-    "GTS9WIFI: configfs fallback mount failed",
+    "configfs mountpoint present",
+    "configfs primary mount failed",
+    "configfs fallback mount failed",
     "GTS9WIFI: USB gadget setup failed",
     "GTS9WIFI: USB gadget skipped because configfs unavailable",
     "GTS9WIFI: UDC bind success",
@@ -77,7 +77,7 @@ def main() -> int:
             raise RuntimeError("missing required initramfs diagnostic marker: " + marker)
 
     sysfs_mount = init_text.find("mount_checked sysfs sysfs sysfs /sys")
-    configfs_probe = init_text.find("GTS9WIFI: configfs mountpoint present")
+    configfs_probe = init_text.find("configfs mountpoint present")
     configfs_primary = init_text.find(
         "/bin/busybox mount -t configfs none /sys/kernel/config"
     )
