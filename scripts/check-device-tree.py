@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """Check S9 identities and critical snapshot-derived values in the final DTB."""
+import argparse
 import json
 import runpy
 import struct
 import sys
 from pathlib import Path
 
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("dtb", type=Path)
+parser.add_argument("--abl-updated", action="store_true", help="Require the three ABL-added reservations instead of their absence")
+args = parser.parse_args()
 parse = runpy.run_path(str(Path(__file__).with_name("analyze-device-snapshot.py")))["parse_fdt"]
-nodes = parse(Path(sys.argv[1]).read_bytes())
+nodes = parse(args.dtb.read_bytes())
 def cells(value):
     return struct.unpack(">" + "I" * (len(value) // 4), value)
 def require(ok, message):
@@ -20,14 +25,18 @@ require(cells(nodes['/clocks/xo-board']['clock-frequency']) == (76800000,), 'Wro
 repeaters = [p for p in nodes.values() if p.get("compatible") == b"nxp,ptn3222\0"]
 require(len(repeaters) == 1, "Expected exactly one S9 repeater")
 require(cells(repeaters[0]["qcom,param-override-seq"]) == (0x20,6,0x21,7,0x63,8,3,9,1,10), "Wrong S9 repeater sequence")
-for name, expected in {
+abl_reservations = {
     "kaslr_region": (0,0xb01ff000,0,0x1000),
     "uh_heap_region": (0,0xb0200000,0,0x40000),
     "uh_guest_region": (0,0xb1000000,0,0x3600000),
-}.items():
+}
+for name, expected in abl_reservations.items():
     path = "/reserved-memory/" + name
-    require(path in nodes, "Missing ABL reservation name: " + name)
-    require(cells(nodes[path]["reg"]) == expected, "Wrong ABL reservation: " + name)
+    if args.abl_updated:
+        require(path in nodes, "Missing ABL reservation name: " + name)
+        require(cells(nodes[path]["reg"]) == expected, "Wrong ABL reservation: " + name)
+    else:
+        require(path not in nodes, "ABL must add this reservation itself: " + name)
 require(cells(nodes["/reserved-memory/sec-log@880200000"]["reg"]) == (8,0x80200000,0,0x200000), "Wrong sec_log carveout")
 require(cells(nodes["/reserved-memory/adspslpi@9ea00000"]["reg"]) == (0,0x9ea00000,0,0x59b4000), "Wrong ADSP carveout")
 require(nodes["/soc@0/usb@a600000"]["dr_mode"] == b"peripheral\0", "USB is not peripheral")
@@ -39,6 +48,10 @@ for path, properties in nodes.items():
         if properties.get('status') != b'disabled\0':
             ranges.append(((a<<32)+b, (c<<32)+d, path))
 ranges.sort()
+if not args.abl_updated:
+    for name, (a,b,c,d) in abl_reservations.items():
+        start=(a<<32)+b; length=(c<<32)+d
+        require(not any(begin < start+length and start < begin+size for begin,size,_ in ranges), "Input DTB already reserves ABL range: " + name)
 for left, right in zip(ranges, ranges[1:]):
     require(left[0]+left[1] <= right[0], 'Overlapping reserved memory: '+left[2]+' / '+right[2])
 stock_path = Path(__file__).resolve().parent.parent/'device/stock-hardware.json'
@@ -51,4 +64,4 @@ for path, properties in json.loads(stock_path.read_text())['nodes'].items():
         continue
     require(any(begin<=start and begin+length>=start+size for begin,length,_ in ranges), 'Unprotected stock carveout: '+path)
     covered += 1
-print(f"Verified S9 identity, USB parameters, {covered} stock carveouts, no reservation overlap and no Ultra panel/touch")
+print(f"Verified S9 identity, USB parameters, {covered} stock carveouts, no reservation overlap and no Ultra panel/touch; ABL reservations {'present' if args.abl_updated else 'deferred to bootloader'}")

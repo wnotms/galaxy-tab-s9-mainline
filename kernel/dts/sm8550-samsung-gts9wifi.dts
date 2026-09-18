@@ -30,24 +30,11 @@
 		 * touching one of these ranges
 		 * can make the secure firmware reset the SoC with a fatal NoC error.
 		 */
-		/* Experimental reuse of ABL names to avoid the first test's overlaps.
-		 * The second test reported ABL add/reserve failures for these nodes;
-		 * see docs/boot-test-20260918-second.md. This is not a validated fix.
+		/* ABL adds kaslr_region, uh_heap_region and uh_guest_region.
+		 * Leave those names and ranges absent here: alternate names caused
+		 * overlapping reservations in test one, matching names caused ABL
+		 * add failures in test two. Verify ABL's reservations on each boot.
 		 */
-		kaslr_mem: kaslr_region {
-			reg = <0x0 0xb01ff000 0x0 0x1000>;
-			no-map;
-		};
-
-		uh_heap_mem: uh_heap_region {
-			reg = <0x0 0xb0200000 0x0 0x40000>;
-			no-map;
-		};
-
-		uh_guest_mem: uh_guest_region {
-			reg = <0x0 0xb1000000 0x0 0x3600000>;
-			no-map;
-		};
 
 		chipinfo_mem: chipinfo@81cf4000 {
 			reg = <0x0 0x81cf4000 0x0 0x1000>;
