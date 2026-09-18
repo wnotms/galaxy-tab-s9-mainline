@@ -39,3 +39,5 @@
 第十次只移除 initcall_debug，内核、DTB、initramfs 及 boot / init_boot / dtbo 与第八次一致。vendor_boot 的正文除命令行字段外也一致。四镜像检查和 TWRP 预检通过，四个分区已刷写回读并重启，Windows 未观察到 USB；回到 TWRP 后日志确认参数已移除，但没有主线版本或诊断标记。日志已归档，原四分区已恢复，最终六个分区哈希与原分区匹配，设备留在 TWRP。问题尚未修复。
 
 按用户 test11.md 构建 GPIO 36–39 保留候选，仅改变 Test10 基线 TLMM 的 gpio-reserved-ranges。原内核／配置和 initramfs 复用，最终 vendor_boot DTB 已核对，四镜像检查、全树单属性差异及篡改拒绝检查通过。用户随后授权冷启动测试，四分区写入／回读通过，但自动进入 TWRP；ABL 记录 PARAM_BOOT_RECOVERY_ENTER 并选择 recovery。优先保存的 pstore 为空，last_kmsg 无新主线日志，结果 INCONCLUSIVE，NoC 状态未知。原四分区已恢复且六分区哈希匹配，设备留在 TWRP。同镜像热启动复测的 ABL 记录正常 boot（BootMode=0、rdinit=/init、UEFI End），但停在三星标识，未观察到 Linux USB，pstore 为空，无新主线日志，仍为 INCONCLUSIVE；采集后原四分区再次恢复，六哈希匹配，最终 TWRP。见 [GPIO Test11](boot-test-20260918-eleventh.md)。
+
+首次日志真实性及历史内核／DTB／cmdline 矩阵已复核。新增[首次原内核 + GPIO 保留复现](boot-test-20260918-first-gpio-replay.md)，复用实际首次四补丁 Image／配置／initramfs，只有 GPIO DT 属性差异；构建与最终镜像比较通过，待实机测试。
