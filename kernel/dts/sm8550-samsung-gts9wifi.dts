@@ -30,8 +30,9 @@
 		 * touching one of these ranges
 		 * can make the secure firmware reset the SoC with a fatal NoC error.
 		 */
-		/* ABL updates these exact names. Reuse them to avoid duplicate
-		 * reservations observed during the first SM-X710 boot attempt.
+		/* Experimental reuse of ABL names to avoid the first test's overlaps.
+		 * The second test reported ABL add/reserve failures for these nodes;
+		 * see docs/boot-test-20260918-second.md. This is not a validated fix.
 		 */
 		kaslr_mem: kaslr_region {
 			reg = <0x0 0xb01ff000 0x0 0x1000>;
