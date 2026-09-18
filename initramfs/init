@@ -179,29 +179,69 @@ record_usb_platform_state()
    driver="${driver##*/}"
   fi
 
+  waiting='<unavailable>'
+  if [ -r "$devpath/waiting_for_supplier" ]; then
+   waiting="$(cat "$devpath/waiting_for_supplier" 2>/dev/null)"
+   [ -n "$waiting" ] || waiting='<empty>'
+  fi
+
   modalias="$(cat "$devpath/modalias" 2>/dev/null)"
   [ -n "$modalias" ] || modalias='<none>'
 
   compatible='<none>'
   if [ -r "$devpath/of_node/compatible" ]; then
-   compatible="$(/bin/busybox tr '\000' ',' < "$devpath/of_node/compatible" 2>/dev/null)"
+   compatible="$(/bin/busybox tr '\\000' ',' < "$devpath/of_node/compatible" 2>/dev/null)"
    compatible="${compatible%,}"
    [ -n "$compatible" ] || compatible='<empty>'
   fi
 
   status='<none>'
   if [ -r "$devpath/of_node/status" ]; then
-   status="$(/bin/busybox tr -d '\000' < "$devpath/of_node/status" 2>/dev/null)"
+   status="$(/bin/busybox tr -d '\\000' < "$devpath/of_node/status" 2>/dev/null)"
   fi
 
-  klog "platform_device name=$devname driver=$driver status=$status modalias=$modalias compatible=$compatible"
+  klog "platform_device name=$devname driver=$driver waiting_for_supplier=$waiting status=$status modalias=$modalias compatible=$compatible"
 
   suppliers=''
   for link in "$devpath"/supplier:*; do
    [ -L "$link" ] || continue
-   target="$(/bin/busybox readlink "$link" 2>/dev/null)"
-   target="${target##*/}"
-   suppliers="$suppliers$target,"
+   linkname="${link##*/}"
+   spec="${linkname#supplier:}"
+   supplier_bus="${spec%%:*}"
+   supplier_name="${spec#*:}"
+   supplier_path="/sys/bus/$supplier_bus/devices/$supplier_name"
+
+   supplier_driver='<none>'
+   supplier_waiting='<unavailable>'
+   supplier_status='<none>'
+   supplier_modalias='<none>'
+   supplier_compatible='<none>'
+
+   if [ -e "$supplier_path" ]; then
+    if [ -L "$supplier_path/driver" ]; then
+     supplier_driver="$(/bin/busybox readlink "$supplier_path/driver" 2>/dev/null)"
+     supplier_driver="${supplier_driver##*/}"
+    fi
+    if [ -r "$supplier_path/waiting_for_supplier" ]; then
+     supplier_waiting="$(cat "$supplier_path/waiting_for_supplier" 2>/dev/null)"
+     [ -n "$supplier_waiting" ] || supplier_waiting='<empty>'
+    fi
+    if [ -r "$supplier_path/of_node/status" ]; then
+     supplier_status="$(/bin/busybox tr -d '\\000' < "$supplier_path/of_node/status" 2>/dev/null)"
+    fi
+    supplier_modalias="$(cat "$supplier_path/modalias" 2>/dev/null)"
+    [ -n "$supplier_modalias" ] || supplier_modalias='<none>'
+    if [ -r "$supplier_path/of_node/compatible" ]; then
+     supplier_compatible="$(/bin/busybox tr '\\000' ',' < "$supplier_path/of_node/compatible" 2>/dev/null)"
+     supplier_compatible="${supplier_compatible%,}"
+     [ -n "$supplier_compatible" ] || supplier_compatible='<empty>'
+    fi
+   else
+    supplier_path='<missing>'
+   fi
+
+   klog "platform_supplier consumer=$devname bus=$supplier_bus name=$supplier_name driver=$supplier_driver waiting_for_supplier=$supplier_waiting status=$supplier_status modalias=$supplier_modalias compatible=$supplier_compatible path=$supplier_path"
+   suppliers="$suppliers$supplier_bus:$supplier_name,"
   done
   [ -n "$suppliers" ] || suppliers='<none>'
   suppliers="${suppliers%,}"
@@ -248,18 +288,31 @@ try_manual_dwc3_bind()
   fi
 
   attempted=1
+  waiting_before='<unavailable>'
+  if [ -r "$devpath/waiting_for_supplier" ]; then
+   waiting_before="$(cat "$devpath/waiting_for_supplier" 2>/dev/null)"
+   [ -n "$waiting_before" ] || waiting_before='<empty>'
+  fi
+  klog "manual_dwc3_bind precheck dev=$devname waiting_for_supplier=$waiting_before"
+
   : > /run/dwc3-manual-bind.err
   ( echo "$devname" > /sys/bus/platform/drivers/dwc3-qcom/bind ) 2>/run/dwc3-manual-bind.err
   rc=$?
   err="$(/bin/busybox tr '\n' ' ' < /run/dwc3-manual-bind.err 2>/dev/null)"
   [ -n "$err" ] || err='<none>'
 
+  waiting_after='<unavailable>'
+  if [ -r "$devpath/waiting_for_supplier" ]; then
+   waiting_after="$(cat "$devpath/waiting_for_supplier" 2>/dev/null)"
+   [ -n "$waiting_after" ] || waiting_after='<empty>'
+  fi
+
   bound='<none>'
   if [ -L "$devpath/driver" ]; then
    bound="$(/bin/busybox readlink "$devpath/driver" 2>/dev/null)"
    bound="${bound##*/}"
   fi
-  klog "manual_dwc3_bind dev=$devname rc=$rc bound=$bound error=$err"
+  klog "manual_dwc3_bind dev=$devname rc=$rc bound=$bound waiting_before=$waiting_before waiting_after=$waiting_after error=$err"
  done
 
  if [ "$attempted" -eq 0 ]; then

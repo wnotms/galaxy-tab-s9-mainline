@@ -111,7 +111,10 @@ PATTERNS = {
     "deferred_probe": re.compile(r"GTS9WIFI: deferred_probe "),
     "platform_driver": re.compile(r"GTS9WIFI: platform_driver "),
     "platform_device": re.compile(r"GTS9WIFI: platform_device "),
+    "platform_waiting_supplier": re.compile(r"GTS9WIFI: platform_device .*waiting_for_supplier=1"),
+    "platform_supplier": re.compile(r"GTS9WIFI: platform_supplier "),
     "manual_dwc3_bind": re.compile(r"GTS9WIFI: manual_dwc3_bind "),
+    "manual_dwc3_defer": re.compile(r"GTS9WIFI: manual_dwc3_bind .*Resource temporarily unavailable"),
     "usb0_present": re.compile(r"GTS9WIFI: usb0 present"),
     "usb0_missing": re.compile(r"GTS9WIFI: usb0 missing after UDC bind"),
     "usb0_configured": re.compile(r"GTS9WIFI: usb0 configured address="),
@@ -422,6 +425,10 @@ def deepest(m):
 
 def classify(m):
     result = deepest(m)
+    if m.get("platform_waiting_supplier"):
+        result += "+WAITING_FOR_SUPPLIER"
+    elif m.get("manual_dwc3_defer"):
+        result += "+DWC3_PROBE_DEFER"
     if m.get("mount_sysfs_failed"):
         result += "+SYSFS_MOUNT_FAILED"
     elif m.get("mount_proc_failed"):
@@ -472,6 +479,10 @@ def record_interpretation(summary):
     if m.get("usb_host_timeout"):
         return "USB gadget 已进入设备端本地就绪阶段，但主机在观察窗口内没有把 UDC state 推进到 configured；应继续分析主机枚举或物理 USB 链路。"
     if m.get("udc_bind_timeout"):
+        if m.get("platform_waiting_supplier"):
+            return "configfs 与 USB gadget 已正常建立，但 a600000.usb 明确处于 waiting_for_supplier=1；dwc3-qcom deferred probe 发生在 supplier 依赖未就绪阶段，应依据 platform_supplier 记录定位未绑定 supplier。"
+        if m.get("manual_dwc3_defer"):
+            return "configfs 与 USB gadget 已正常建立，a600000.usb 手动绑定 dwc3-qcom 返回 EAGAIN/EPROBE_DEFER；若 waiting_for_supplier=0，则 deferred probe 更可能来自 dwc3_qcom_probe 或 DWC3 core 内部。"
         if m.get("manual_dwc3_bind"):
             return "configfs 与 USB gadget 已正常建立，但等待窗口内没有 UDC；已记录 a600000 platform device、dwc3-qcom 手动 bind 结果和实际 driver binding，应依据这些结果定位 DWC3 probe。"
         return "initramfs 已运行到 USB gadget 配置，但没有在等待窗口内成功绑定任何 UDC；应检查 DWC3/UDC 驱动 probe 与设备树。"
@@ -532,7 +543,8 @@ def write_test_record(rd, state, summary):
         "udc_test_skipped", "udc_no_controller", "udc_candidate",
         "udc_bind_success", "udc_bind_failed", "udc_bind_timeout",
         "udc_class", "deferred_probe", "platform_driver",
-        "platform_device", "manual_dwc3_bind",
+        "platform_device", "platform_waiting_supplier", "platform_supplier",
+        "manual_dwc3_bind", "manual_dwc3_defer",
         "usb0_present", "usb0_missing", "usb0_configured",
         "usb0_config_failed", "telnet_started", "telnet_failed",
         "usb_local_ready", "udc_state", "usb_host_configured",

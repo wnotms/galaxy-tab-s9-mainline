@@ -39,6 +39,8 @@ REQUIRED_INIT_MARKERS = (
     "GTS9WIFI: USB host configuration timeout",
     "platform_driver ",
     "platform_device name=",
+    "waiting_for_supplier=",
+    "platform_supplier consumer=",
     "manual_dwc3_bind",
 )
 
@@ -109,6 +111,10 @@ def main() -> int:
         raise RuntimeError("mount_checked must preserve the real mount return code")
     if "record_usb_platform_state" not in init_text:
         raise RuntimeError("missing platform-device USB diagnostics")
+    if "waiting_for_supplier" not in init_text:
+        raise RuntimeError("missing fw_devlink waiting-for-supplier diagnostics")
+    if "platform_supplier consumer=" not in init_text:
+        raise RuntimeError("missing supplier driver-state diagnostics")
     if "try_manual_dwc3_bind" not in init_text:
         raise RuntimeError("missing manual dwc3-qcom bind diagnostic")
 
