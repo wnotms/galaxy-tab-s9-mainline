@@ -111,10 +111,32 @@ Requested Partition: recovery
 
 完整证据保存在 `artifacts/boot-tests/test11-gpio-sm-x710/`：flash/report.json、boot-operation.json、recovery-before/、recovery-after/、restore/report.json 和 result.json。构建 manifest 保留为输入记录，实时结果以本次 result.json 为准。下一次实验应先核实并记录正常启动选择，避免 recovery 参数标志使 GPIO 测试再次无效；不直接修改未确认布局的 Samsung param 分区。
 
-## 同镜像热启动复测：已刷写，等待观察
+## 同镜像热启动复测：正常 boot 路径，INCONCLUSIVE
 
 用户继续授权“继续刷入测试”。为核实正常启动选择，本轮不再关机，由 TWRP 中 `adb reboot` 请求正常重启；这属于 warm 复测，不与上面的 cold 记录混用。GPIO 候选四镜像、Test10 Kernel Image、initramfs、DTB、cmdline 和打包参数均未改变，也未直接写入 Samsung param 分区。
 
-本轮归档为 `artifacts/boot-tests/test11-gpio-warm-sm-x710/`。保存刷前 pstore、last_kmsg、Windows USB／网络基线及候选四镜像；新一轮 TWRP 预检通过，四分区写入和回读验证通过，vbmeta/recovery 校验未变，正常重启命令执行成功。用户观察本轮停在三星标识。Windows 采样未发现目标 Linux USB 或 Samsung USB 候选，未新增网络接口，ADB 未连接。已请用户手动返回 TWRP，优先保存 pstore，再读取 last_kmsg；实际 ABL 启动选择待日志确认。停留标识及无 USB 均不能独立证明内核未运行。
+本轮归档为 `artifacts/boot-tests/test11-gpio-warm-sm-x710/`。保存刷前 pstore、last_kmsg、Windows USB／网络基线及候选四镜像；新一轮 TWRP 预检通过，四分区写入和回读验证通过，vbmeta/recovery 校验未变，正常重启命令执行成功。用户观察本轮停在三星标识。Windows 采样未发现目标 Linux USB 或 Samsung USB 候选，未新增网络接口，ADB 未连接。用户随后手动返回 TWRP；优先保存 pstore，再读取 last_kmsg。停留标识及无 USB 均不能独立证明内核未运行。
 
-Result：PENDING；NoC：Unknown；本轮候选仍在设备上，尚未恢复原四分区。
+本次 pstore 清单为空，拉取 0 文件。last_kmsg 为 2097136 字节，SHA256 `f5ef53b356dc2ebf577762898c17b6fd29a206aadbfd5f1db50c8ddc7da57ffc`，与刷前不同；采集时四分区仍匹配 GPIO 候选。
+
+保存的正常启动段记录：
+
+```text
+Booting Into Mission Mode
+BootMode = 0
+Requested Partition: boot
+```
+
+这一段含主线 `rdinit=/init` 参数，并到达 `UEFI End`。刷前日志没有 Mission Mode、BootMode=0 或 rdinit=/init，支持这是一段新增正常启动尝试；已单独保存为 recovery-after/test-abl-segment.txt。其后还有用户手动进入恢复的段落，已另存，不能用后段的 recovery 选择替代前段结果。本轮确实观察到 ABL 正常选择 boot，前轮直接选择 recovery 的现象没有在该启动段复现；这不证明内核指令已执行。
+
+仍没有新主线 Linux 版本、GTS9WIFI 检查点或 Fatal NoC 字符串，也没有 probe 进展证据。日志存在旧 TWRP 内容，标记 STALE LOG POSSIBLE；不能用日志变化、UEFI End 或未见 NoC 来确认 GPIO 修复。启动段没有保留区重叠报错，不代表已验证 ABL 修改后的 DT 内存布局。
+
+- Boot type：warm，TWRP 中 adb reboot。
+- Screen：停在三星标识，随后用户手动进入 TWRP。
+- ABL selection：正常 boot，BootMode=0，主线 rdinit 参数存在。
+- USB：一次 Windows 采样未观察到目标 Linux USB、新网络接口或 ADB，不能据此证明内核未运行。
+- pstore：空；新主线执行未证实。
+- Fatal NoC：Unknown。
+- Result：INCONCLUSIVE；GPIO 修复效果仍未确认。
+
+采集后恢复原 boot/init_boot/vendor_boot/dtbo，每个回读通过；再独立核对全部六分区哈希与刷前一致，vbmeta/recovery 校验未变，最终保持 TWRP，未再次重启。restore/report.json、result.json 保存本轮收尾。GPIO 属性继续保留；后续需取得内核执行或 probe 进展证据，单纯重复这组无日志启动不能确定故障位置。
