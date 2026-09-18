@@ -38,6 +38,8 @@ REQUIRED_INIT_MARKERS = (
     "GTS9WIFI: USB host configured",
     "GTS9WIFI: USB host configuration timeout",
     "GTS9WIFI: platform_driver",
+    "platform_device name=",
+    "manual_dwc3_bind",
 )
 
 
@@ -93,6 +95,7 @@ def main() -> int:
 
     for required in (
         "mount_checked devtmpfs devtmpfs devtmpfs /dev",
+        "mkdir -p /dev/pts",
         "mount_checked proc proc proc /proc",
         "mount_checked sysfs sysfs sysfs /sys",
         "filesystem available name=",
@@ -101,6 +104,13 @@ def main() -> int:
     ):
         if required not in init_text:
             raise RuntimeError("missing pseudo-filesystem diagnostic: " + required)
+
+    if "rc=$?" not in init_text or "/bin/busybox mount -t" not in init_text:
+        raise RuntimeError("mount_checked must preserve the real mount return code")
+    if "record_usb_platform_state" not in init_text:
+        raise RuntimeError("missing platform-device USB diagnostics")
+    if "try_manual_dwc3_bind" not in init_text:
+        raise RuntimeError("missing manual dwc3-qcom bind diagnostic")
 
     if "/bin/busybox sleep 1" not in init_text:
         raise RuntimeError("UDC/host wait loops must use explicit BusyBox sleep")
