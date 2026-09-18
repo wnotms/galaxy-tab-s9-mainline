@@ -49,6 +49,32 @@ PATTERNS = {
     "setup_after_unflatten": re.compile(r"GTS9WIFI: setup_arch after_unflatten"),
     "setup_after_bootmem": re.compile(r"GTS9WIFI: setup_arch after_bootmem"),
     "console_init": re.compile(r"GTS9WIFI: console_initcall reached"),
+    "start_after_console": re.compile(r"GTS9WIFI: start_kernel after_console_init"),
+    "mmu_state": re.compile(r"mmu_enabled_at_boot="),
+    "start_before_rest": re.compile(r"GTS9WIFI: start_kernel before_rest_init"),
+    "rest_enter": re.compile(r"GTS9WIFI: rest_init enter"),
+    "rest_pid1": re.compile(r"GTS9WIFI: rest_init pid1_created"),
+    "rest_kthreadd": re.compile(r"GTS9WIFI: rest_init kthreadd_created"),
+    "rest_ready": re.compile(r"GTS9WIFI: rest_init kthreadd_ready"),
+    "kernel_init_enter": re.compile(r"GTS9WIFI: kernel_init enter"),
+    "kernel_init_ready": re.compile(r"GTS9WIFI: kernel_init kthreadd_ready"),
+    "freeable_enter": re.compile(r"GTS9WIFI: kernel_init_freeable enter"),
+    "pre_smp_before": re.compile(r"GTS9WIFI: kernel_init_freeable before_pre_smp_initcalls"),
+    "pre_smp_after": re.compile(r"GTS9WIFI: kernel_init_freeable after_pre_smp_initcalls"),
+    "smp_after": re.compile(r"GTS9WIFI: kernel_init_freeable after_smp_init"),
+    "basic_before": re.compile(r"GTS9WIFI: kernel_init_freeable before_basic_setup"),
+    "basic_after": re.compile(r"GTS9WIFI: kernel_init_freeable after_basic_setup"),
+    "wait_initramfs_after": re.compile(r"GTS9WIFI: kernel_init_freeable after_wait_for_initramfs"),
+    "console_rootfs_after": re.compile(r"GTS9WIFI: kernel_init_freeable after_console_on_rootfs"),
+    "rdinit_access": re.compile(r"GTS9WIFI: kernel_init_freeable rdinit_access="),
+    "freeable_done": re.compile(r"GTS9WIFI: kernel_init_freeable done"),
+    "kernel_init_freeable_done": re.compile(r"GTS9WIFI: kernel_init kernel_init_freeable_done"),
+    "rdinit_before_exec": re.compile(r"GTS9WIFI: kernel_init before_rdinit_exec"),
+    "rdinit_exec_failed": re.compile(r"GTS9WIFI: kernel_init rdinit_exec_failed"),
+    "initramfs_entered": re.compile(r"GTS9WIFI: initramfs init entered"),
+    "initramfs_ready": re.compile(r"initramfs ready; USB NCM address"),
+    "initcall_level": re.compile(r"GTS9WIFI: initcall level .* (?:begin|end)"),
+    "initcall_debug": re.compile(r"(?:calling  .* @ |initcall .* returned )"),
     "linux": re.compile(r"Linux version .*gts9wifi-bringup"),
     "fatal_noc": re.compile(r"TZBSP_ERR_FATAL_NOC_ERROR"),
     "user_reset": re.compile(r"upload_cause = User press reset keys for 7 sec"),
@@ -58,6 +84,29 @@ PATTERNS = {
 }
 
 STAGES = (
+    ("initramfs_ready", "INITRAMFS_USB_READY"),
+    ("initramfs_entered", "INITRAMFS_INIT_ENTERED"),
+    ("rdinit_before_exec", "KERNEL_BEFORE_RDINIT_EXEC"),
+    ("kernel_init_freeable_done", "KERNEL_INIT_FREEABLE_RETURNED"),
+    ("freeable_done", "KERNEL_INIT_FREEABLE_DONE"),
+    ("rdinit_access", "KERNEL_RDINIT_ACCESS_CHECKED"),
+    ("console_rootfs_after", "KERNEL_CONSOLE_ON_ROOTFS_DONE"),
+    ("wait_initramfs_after", "KERNEL_WAIT_FOR_INITRAMFS_DONE"),
+    ("basic_after", "KERNEL_BASIC_SETUP_DONE"),
+    ("basic_before", "KERNEL_BEFORE_BASIC_SETUP"),
+    ("smp_after", "KERNEL_SMP_INIT_DONE"),
+    ("pre_smp_after", "KERNEL_PRE_SMP_INITCALLS_DONE"),
+    ("pre_smp_before", "KERNEL_BEFORE_PRE_SMP_INITCALLS"),
+    ("freeable_enter", "KERNEL_INIT_FREEABLE_ENTER"),
+    ("kernel_init_ready", "KERNEL_INIT_KTHREADD_READY"),
+    ("kernel_init_enter", "KERNEL_INIT_ENTER"),
+    ("rest_ready", "REST_INIT_KTHREADD_READY"),
+    ("rest_kthreadd", "REST_INIT_KTHREADD_CREATED"),
+    ("rest_pid1", "REST_INIT_PID1_CREATED"),
+    ("rest_enter", "REST_INIT_ENTER"),
+    ("start_before_rest", "START_KERNEL_BEFORE_REST_INIT"),
+    ("start_after_console", "START_KERNEL_AFTER_CONSOLE_INIT"),
+    ("console_init", "CONSOLE_INITCALL_REACHED"),
     ("setup_after_bootmem", "SETUP_ARCH_AFTER_BOOTMEM"),
     ("setup_after_unflatten", "SETUP_ARCH_AFTER_UNFLATTEN"),
     ("setup_after_paging", "SETUP_ARCH_AFTER_PAGING"),
@@ -111,13 +160,26 @@ def patch_id():
 def verify_repo():
     if not PATCH.is_file():
         raise RuntimeError("entry-marker patch is missing")
+    late_patch = ROOT / "kernel/patches/record-late-boot-checkpoints.patch"
+    if not late_patch.is_file():
+        raise RuntimeError("late-boot checkpoint patch is missing")
     series = SERIES.read_text().splitlines()
-    if PATCH.name not in series:
-        raise RuntimeError("entry-marker patch is not enabled in series")
+    for required in (PATCH.name, late_patch.name):
+        if required not in series:
+            raise RuntimeError(required + " is not enabled in series")
     text = PATCH.read_text()
     for marker in MARKERS:
         if marker not in text:
             raise RuntimeError("missing marker in patch: " + marker)
+    late_text = late_patch.read_text()
+    for marker in (
+        "start_kernel after_console_init",
+        "rest_init enter",
+        "kernel_init_freeable enter",
+        "kernel_init before_rdinit_exec",
+    ):
+        if marker not in late_text:
+            raise RuntimeError("missing late-boot marker in patch: " + marker)
     config = (ROOT / "kernel/config/gts9wifi-bringup.config").read_text()
     if "CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG=y" not in config:
         raise RuntimeError("persistent sec-log config is required")
