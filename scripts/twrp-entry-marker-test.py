@@ -573,12 +573,10 @@ def write_test_record(rd, state, summary):
         md.append("- " + key + "：" + value)
     md.append("")
 
-    record_name = "boot-test-" + rd.name + ".md"
-    docs_path = ROOT / "docs" / record_name
     markdown = "\n".join(md)
-    (rd / "TEST-RECORD.md").write_text(markdown)
-    docs_path.write_text(markdown)
-    return rd / "TEST-RECORD.md", docs_path
+    local_path = rd / "TEST-RECORD.md"
+    local_path.write_text(markdown)
+    return local_path
 
 def cmd_build(args):
     verify_repo()
@@ -718,11 +716,10 @@ def cmd_collect(args):
     })
     save(STATE_FILE, state)
     save(rd / "run.json", state)
-    local_record, docs_record = write_test_record(rd, state, summary)
+    local_record = write_test_record(rd, state, summary)
     print((out / "summary.txt").read_text(), end="")
     print("Logs:", out)
     print("Test record:", local_record)
-    print("Repository record:", docs_record)
     print("Now restore with:")
     print("  python3 scripts/twrp-entry-marker-test.py restore")
 
@@ -739,9 +736,8 @@ def cmd_restore(args):
     save(rd / "run.json", state)
     summary_path = rd / "recovery-after/summary.json"
     if summary_path.is_file():
-        local_record, docs_record = write_test_record(rd, state, load(summary_path))
+        local_record = write_test_record(rd, state, load(summary_path))
         print("Updated test record:", local_record)
-        print("Updated repository record:", docs_record)
     print("PASS: original four boot partitions restored; device left in TWRP")
 
 def cmd_record(args):
@@ -750,9 +746,8 @@ def cmd_record(args):
     summary_path = rd / "recovery-after/summary.json"
     if not summary_path.is_file():
         raise RuntimeError("no collected summary for run: " + str(rd))
-    local_record, docs_record = write_test_record(rd, run_state, load(summary_path))
+    local_record = write_test_record(rd, run_state, load(summary_path))
     print("Test record:", local_record)
-    print("Repository record:", docs_record)
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
