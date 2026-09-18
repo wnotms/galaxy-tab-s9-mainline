@@ -7,78 +7,147 @@ then expose them through /proc/last_kmsg even when setup_arch is never reached.
 
 The diagnostic is compiled only with CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG. The
 physical address is the same owner-validated 2 MiB region used by the existing
-persistent console. If firmware enters with the MMU already enabled the
-pre-MMU markers are deliberately skipped rather than dereferencing a physical
-address through an unknown translation regime.
+persistent console. If firmware enters with the MMU/cache state represented by
+x19 as enabled, the pre-MMU markers are deliberately skipped.
 
 diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
 --- a/arch/arm64/kernel/head.S
 +++ b/arch/arm64/kernel/head.S
-@@ -1,6 +1,18 @@
- SYM_CODE_START(primary_entry)
- 	bl	record_mmu_state
+@@ -85,49 +85,129 @@
+-SYM_CODE_START(primary_entry)
+-	bl	record_mmu_state
+-	bl	preserve_boot_args
+-
+-	adrp	x1, early_init_stack
+-	mov	sp, x1
+-	mov	x29, xzr
+-	adrp	x0, __pi_init_idmap_pg_dir
+-	mov	x1, xzr
+-	bl	__pi_create_init_idmap
+-
+-	/*
+-	 * If the page tables have been populated with non-cacheable
+-	 * accesses (MMU disabled), invalidate those tables again to
+-	 * remove any speculatively loaded cache lines.
+-	 */
+-	cbnz	x19, 0f
+-	dmb     sy
+-	mov	x1, x0				// end of used region
+-	adrp    x0, __pi_init_idmap_pg_dir
+-	adr_l	x2, dcache_inval_poc
+-	blr	x2
+-	b	1f
+-
+-	/*
+-	 * If we entered with the MMU and caches on, clean the ID mapped part
+-	 * of the primary boot code to the PoC so we can safely execute it with
+-	 * the MMU off.
+-	 */
+-0:	adrp	x0, __idmap_text_start
+-	adr_l	x1, __idmap_text_end
+-	adr_l	x2, dcache_clean_poc
+-	blr	x2
+-
+-1:	mov	x0, x19
+-	bl	init_kernel_el			// w0=cpu_boot_mode
+-	mov	x20, x0
+-
+-	/*
+-	 * The following calls CPU setup code, see arch/arm64/mm/proc.S for
+-	 * details.
+-	 * On return, the CPU will be ready for the MMU to be turned on and
+-	 * the TCR will have been set.
+-	 */
+-	bl	__cpu_setup			// initialise processor
+-	b	__primary_switch
+-SYM_CODE_END(primary_entry)
+-
+-	__INIT
++SYM_CODE_START(primary_entry)
++	bl	record_mmu_state
 +#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
 +	cbnz	x19, .Lgts9wifi_skip_entry_01
-+	mov_q	x12, 0x0a31303331453947	// "G9E1301\n"
++	mov_q	x12, 0x0a31303331453947	// "G9E1301\\n"
 +	bl	gts9wifi_entry_marker_reset
 +.Lgts9wifi_skip_entry_01:
 +#endif
- 	bl	preserve_boot_args
++	bl	preserve_boot_args
 +#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
 +	cbnz	x19, .Lgts9wifi_skip_entry_02
-+	mov_q	x12, 0x0a32303331453947	// "G9E1302\n"
++	mov_q	x12, 0x0a32303331453947	// "G9E1302\\n"
 +	bl	gts9wifi_entry_marker_append
 +.Lgts9wifi_skip_entry_02:
 +#endif
- 
- 	adrp	x1, early_init_stack
- 	mov	sp, x1
-@@ -8,6 +20,12 @@
- 	adrp	x0, __pi_init_idmap_pg_dir
- 	mov	x1, xzr
- 	bl	__pi_create_init_idmap
++
++	adrp	x1, early_init_stack
++	mov	sp, x1
++	mov	x29, xzr
++	adrp	x0, __pi_init_idmap_pg_dir
++	mov	x1, xzr
++	bl	__pi_create_init_idmap
 +#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
 +	cbnz	x19, .Lgts9wifi_skip_entry_03
-+	mov_q	x12, 0x0a33303331453947	// "G9E1303\n"
++	mov_q	x12, 0x0a33303331453947	// "G9E1303\\n"
 +	bl	gts9wifi_entry_marker_append
 +.Lgts9wifi_skip_entry_03:
 +#endif
- 
- 	/*
- 	 * If the page tables have been populated with non-cacheable
-@@ -35,6 +53,12 @@
- 1:	mov	x0, x19
- 	bl	init_kernel_el			// w0=cpu_boot_mode
- 	mov	x20, x0
++
++	/*
++	 * If the page tables have been populated with non-cacheable
++	 * accesses (MMU disabled), invalidate those tables again to
++	 * remove any speculatively loaded cache lines.
++	 */
++	cbnz	x19, 0f
++	dmb     sy
++	mov	x1, x0				// end of used region
++	adrp    x0, __pi_init_idmap_pg_dir
++	adr_l	x2, dcache_inval_poc
++	blr	x2
++	b	1f
++
++	/*
++	 * If we entered with the MMU and caches on, clean the ID mapped part
++	 * of the primary boot code to the PoC so we can safely execute it with
++	 * the MMU off.
++	 */
++0:	adrp	x0, __idmap_text_start
++	adr_l	x1, __idmap_text_end
++	adr_l	x2, dcache_clean_poc
++	blr	x2
++
++1:	mov	x0, x19
++	bl	init_kernel_el			// w0=cpu_boot_mode
++	mov	x20, x0
 +#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
 +	cbnz	x19, .Lgts9wifi_skip_entry_04
-+	mov_q	x12, 0x0a34303331453947	// "G9E1304\n"
++	mov_q	x12, 0x0a34303331453947	// "G9E1304\\n"
 +	bl	gts9wifi_entry_marker_append
 +.Lgts9wifi_skip_entry_04:
 +#endif
- 
- 	/*
- 	 * The following calls CPU setup code, see arch/arm64/mm/proc.S for
-@@ -43,9 +67,65 @@
- 	 * the TCR will have been set.
- 	 */
- 	bl	__cpu_setup			// initialise processor
++
++	/*
++	 * The following calls CPU setup code, see arch/arm64/mm/proc.S for
++	 * details.
++	 * On return, the CPU will be ready for the MMU to be turned on and
++	 * the TCR will have been set.
++	 */
++	bl	__cpu_setup			// initialise processor
 +#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
 +	cbnz	x19, .Lgts9wifi_skip_entry_05
-+	mov_q	x12, 0x0a35303331453947	// "G9E1305\n"
++	mov_q	x12, 0x0a35303331453947	// "G9E1305\\n"
 +	bl	gts9wifi_entry_marker_append
 +.Lgts9wifi_skip_entry_05:
 +#endif
- 	b	__primary_switch
- SYM_CODE_END(primary_entry)
- 
++	b	__primary_switch
++SYM_CODE_END(primary_entry)
++
 +#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
 +/*
 + * sec_log_buf layout used by the downstream recovery and the matching
 + * mainline diagnostic driver:
 + *   +0 boot_count, +4 magic, +8 index, +12 previous_index, +16 data.
 + *
-+ * x12 carries one eight-byte ASCII marker.  These helpers intentionally use
++ * x12 carries one eight-byte ASCII marker. These helpers intentionally use
 + * only caller-saved x9-x11 and do not touch x0/x19/x20/x21 boot state.
 + */
 +SYM_CODE_START_LOCAL(gts9wifi_entry_marker_reset)
@@ -122,6 +191,4 @@ diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
 +SYM_CODE_END(gts9wifi_entry_marker_append)
 +#endif
 +
- 	__INIT
- SYM_CODE_START_LOCAL(record_mmu_state)
- 	mrs	x19, CurrentEL
++	__INIT
