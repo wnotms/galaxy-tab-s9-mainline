@@ -14,7 +14,12 @@ mount -t tmpfs tmpfs /run
 mount -t tmpfs tmpfs /tmp
 echo 'GTS9WIFI: initramfs pseudo filesystems ready' > /dev/kmsg 2>/dev/null || true
 echo 'Galaxy Tab S9 mainline diagnostic initramfs (experimental)' > /dev/kmsg
-mount -t configfs configfs /sys/kernel/config
+if mount -t configfs configfs /sys/kernel/config; then
+ echo 'GTS9WIFI: configfs mounted' > /dev/kmsg 2>/dev/null || true
+else
+ echo 'GTS9WIFI: configfs mount failed' > /dev/kmsg 2>/dev/null || true
+fi
+
 G=/sys/kernel/config/usb_gadget/gts9wifi
 mkdir -p "$G"
 echo 0x1d6b > "$G/idVendor"
@@ -29,23 +34,97 @@ echo 250 > "$G/configs/c.1/MaxPower"
 echo '02:71:00:00:00:01' > "$G/functions/ncm.usb0/dev_addr"
 echo '02:71:00:00:00:02' > "$G/functions/ncm.usb0/host_addr"
 ln -s "$G/functions/ncm.usb0" "$G/configs/c.1/ncm.usb0"
-# Probe deferral may leave the controller unavailable briefly.
+echo 'GTS9WIFI: USB gadget configured' > /dev/kmsg 2>/dev/null || true
+
+# Probe deferral may leave the controller unavailable briefly. Record the
+# distinction between no UDC, bind failure, local usb0 setup and host enum.
+udc=''
+last_candidate=''
 i=0
 while [ "$i" -lt 30 ]; do
+ seen=0
  for controller in /sys/class/udc/*; do
   [ -e "$controller" ] || continue
-  echo "${controller##*/}" > "$G/UDC"
-  break
+  seen=1
+  name="${controller##*/}"
+  if [ "$name" != "$last_candidate" ]; then
+   echo "GTS9WIFI: UDC candidate controller=$name" > /dev/kmsg 2>/dev/null || true
+   last_candidate="$name"
+  fi
+  : > /run/udc-bind.err
+  if echo "$name" > "$G/UDC" 2>/run/udc-bind.err; then
+   bound="$(cat "$G/UDC" 2>/dev/null)"
+   if [ "$bound" = "$name" ]; then
+    udc="$name"
+    echo "GTS9WIFI: UDC bind success controller=$udc attempt=$i" > /dev/kmsg 2>/dev/null || true
+    break
+   fi
+   echo "GTS9WIFI: UDC bind verification failed controller=$name bound=$bound" > /dev/kmsg 2>/dev/null || true
+  else
+   err="$(cat /run/udc-bind.err 2>/dev/null)"
+   echo "GTS9WIFI: UDC bind failed controller=$name error=$err" > /dev/kmsg 2>/dev/null || true
+  fi
  done
- [ -n "$(cat "$G/UDC")" ] && break
- i=$((i + 1)); sleep 1
+ [ -n "$udc" ] && break
+ if [ "$seen" -eq 0 ] && [ "$i" -eq 0 ]; then
+  echo 'GTS9WIFI: UDC no controller yet' > /dev/kmsg 2>/dev/null || true
+ fi
+ i=$((i + 1))
+ sleep 1
 done
-ifconfig usb0 172.16.71.1 netmask 255.255.255.0 up
-# Diagnostic shell reachable only over the directly attached USB link.
-# No authentication: use this RAM-only image for development, not deployment.
-telnetd -b 172.16.71.1 -p 23 -l /bin/sh
-dmesg > /run/boot-dmesg.txt
-echo 'initramfs ready; USB NCM address 172.16.71.1, telnet port 23' > /dev/kmsg
+
+if [ -z "$udc" ]; then
+ echo 'GTS9WIFI: UDC bind timeout' > /dev/kmsg 2>/dev/null || true
+ dmesg > /run/boot-dmesg.txt
+else
+ if [ -d /sys/class/net/usb0 ]; then
+  echo 'GTS9WIFI: usb0 present' > /dev/kmsg 2>/dev/null || true
+ else
+  echo 'GTS9WIFI: usb0 missing after UDC bind' > /dev/kmsg 2>/dev/null || true
+ fi
+
+ if ifconfig usb0 172.16.71.1 netmask 255.255.255.0 up; then
+  echo 'GTS9WIFI: usb0 configured address=172.16.71.1' > /dev/kmsg 2>/dev/null || true
+  # Diagnostic shell reachable only over the directly attached USB link.
+  # No authentication: use this RAM-only image for development, not deployment.
+  if telnetd -b 172.16.71.1 -p 23 -l /bin/sh; then
+   echo 'GTS9WIFI: telnetd started port=23' > /dev/kmsg 2>/dev/null || true
+  else
+   echo 'GTS9WIFI: telnetd start failed' > /dev/kmsg 2>/dev/null || true
+  fi
+ else
+  echo 'GTS9WIFI: usb0 configuration failed' > /dev/kmsg 2>/dev/null || true
+ fi
+
+ echo "GTS9WIFI: USB NCM local ready controller=$udc" > /dev/kmsg 2>/dev/null || true
+
+ state_file="/sys/class/udc/$udc/state"
+ last_state=''
+ host_configured=0
+ j=0
+ while [ "$j" -lt 60 ]; do
+  state="$(cat "$state_file" 2>/dev/null)"
+  [ -n "$state" ] || state='unavailable'
+  if [ "$state" != "$last_state" ]; then
+   echo "GTS9WIFI: UDC state controller=$udc state=$state" > /dev/kmsg 2>/dev/null || true
+   last_state="$state"
+  fi
+  if [ "$state" = 'configured' ]; then
+   host_configured=1
+   echo "GTS9WIFI: USB host configured controller=$udc" > /dev/kmsg 2>/dev/null || true
+   break
+  fi
+  j=$((j + 1))
+  sleep 1
+ done
+
+ if [ "$host_configured" -eq 1 ]; then
+  echo 'initramfs ready; USB NCM host configured; address 172.16.71.1, telnet port 23' > /dev/kmsg
+ else
+  echo "GTS9WIFI: USB host configuration timeout controller=$udc final_state=$last_state" > /dev/kmsg 2>/dev/null || true
+ fi
+ dmesg > /run/boot-dmesg.txt
+fi
 # Never mount internal UFS or modify Android partitions. Stay in RAM.
 while :; do
  setsid sh -c 'exec sh </dev/console >/dev/console 2>&1'
