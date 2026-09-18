@@ -2,7 +2,7 @@
 
 面向 **Samsung Galaxy Tab S9 Wi-Fi / SM-X710 / gts9wifi** 的独立移植仓库。基于 [S9 Ultra 项目](https://github.com/agcarbajo/ubuntu-galaxy-tab-s9-ultra)的启动经验，使用本机通过 TWRP 提取的分区和设备树建立 S9 板级配置。
 
-当前是**可构建的启动调试基线**：主线内核、独立 S9 DTB、RAM 中运行的 USB 网络诊断环境，以及 Android v4 启动镜像生成工具。**尚未在 SM-X710 上刷写或启动验证，屏幕和触控尚未实现，不能作为可用的 Ubuntu 桌面系统。**
+当前是**可构建的启动调试基线**：主线内核、独立 S9 DTB、RAM 中运行的 USB 网络诊断环境，以及 Android v4 启动镜像生成工具。**已完成首次实机写入和重启，但未观察到 USB 枚举，主线启动尚未确认。屏幕和触控尚未实现，不能作为可用的 Ubuntu 桌面系统。** 见 [首次启动记录](docs/boot-test-20260918.md)。
 
 ## 当前内容
 
@@ -13,7 +13,7 @@
 | Samsung 保留内存与持久内核日志 | 地址来自提取资料；日志写入效果待实测 |
 | eUSB2、NXP PTN3222、USB2 peripheral / NCM | 驱动已编入，枚举待实测 |
 | microSD / ext4 | 驱动已编入；当前 initramfs 不自动挂载 SD |
-| Android v4 的四个启动镜像 | 离线结构、地址、大小与 AVB 哈希验证通过 |
+| Android v4 的四个启动镜像 | 离线检查、实机写入及回读通过；首次重启未枚举 USB |
 | ANA38407 AMSA10FA01、STM FTS1BA90A、Wacom | 保留实机资料；未启用驱动 |
 | WLAN、音频、充电、相机、指纹、GPU | 后续阶段，当前未启用 |
 
