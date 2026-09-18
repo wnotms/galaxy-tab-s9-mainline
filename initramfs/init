@@ -99,8 +99,48 @@ if [ "$gadget_ok" -eq 1 ]; then
  done
 fi
 
-if [ -z "$udc" ]; then
+if [ "$gadget_ok" -ne 1 ]; then
+ echo 'GTS9WIFI: USB UDC test skipped because gadget setup failed' > /dev/kmsg 2>/dev/null || true
+ dmesg > /run/boot-dmesg.txt
+elif [ -z "$udc" ]; then
  echo 'GTS9WIFI: UDC bind timeout' > /dev/kmsg 2>/dev/null || true
+ if [ -d /sys/class/udc ]; then
+  udc_list="$(ls -1 /sys/class/udc 2>/dev/null | tr '\n' ',' | sed 's/,$//')"
+  [ -n "$udc_list" ] || udc_list='<empty>'
+  echo "GTS9WIFI: UDC class entries=$udc_list" > /dev/kmsg 2>/dev/null || true
+ else
+  echo 'GTS9WIFI: UDC class missing' > /dev/kmsg 2>/dev/null || true
+ fi
+
+ mkdir -p /sys/kernel/debug
+ if mount -t debugfs debugfs /sys/kernel/debug 2>/run/debugfs-mount.err; then
+  echo 'GTS9WIFI: debugfs mounted for deferred-probe diagnostics' > /dev/kmsg 2>/dev/null || true
+ elif grep -q ' /sys/kernel/debug debugfs ' /proc/mounts 2>/dev/null; then
+  echo 'GTS9WIFI: debugfs already mounted' > /dev/kmsg 2>/dev/null || true
+ fi
+ if [ -r /sys/kernel/debug/devices_deferred ]; then
+  while IFS= read -r deferred; do
+   [ -n "$deferred" ] || continue
+   echo "GTS9WIFI: deferred_probe $deferred" > /dev/kmsg 2>/dev/null || true
+  done < /sys/kernel/debug/devices_deferred
+ fi
+
+ for driver_dir in /sys/bus/platform/drivers/dwc3 /sys/bus/platform/drivers/dwc3-qcom /sys/bus/platform/drivers/qcom-dwc3; do
+  [ -d "$driver_dir" ] || continue
+  driver_name="${driver_dir##*/}"
+  bound=''
+  for node in "$driver_dir"/*; do
+   [ -L "$node" ] || continue
+   item="${node##*/}"
+   case "$item" in
+    bind|unbind|module|uevent) continue ;;
+   esac
+   bound="$bound$item,"
+  done
+  [ -n "$bound" ] || bound='<none>'
+  echo "GTS9WIFI: platform_driver $driver_name bound=$bound" > /dev/kmsg 2>/dev/null || true
+ done
+
  dmesg > /run/boot-dmesg.txt
 else
  if [ -d /sys/class/net/usb0 ]; then
