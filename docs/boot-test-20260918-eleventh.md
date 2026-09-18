@@ -110,3 +110,11 @@ Requested Partition: recovery
 采集后使用 microSD 上的独立恢复脚本恢复原 boot/init_boot/vendor_boot/dtbo；每个分区回读通过，再独立核对六分区哈希与刷前完全一致，vbmeta/recovery 校验未变。设备留在 TWRP，未再次重启。GPIO 属性保留，不根据无新内核日志自动撤回。
 
 完整证据保存在 `artifacts/boot-tests/test11-gpio-sm-x710/`：flash/report.json、boot-operation.json、recovery-before/、recovery-after/、restore/report.json 和 result.json。构建 manifest 保留为输入记录，实时结果以本次 result.json 为准。下一次实验应先核实并记录正常启动选择，避免 recovery 参数标志使 GPIO 测试再次无效；不直接修改未确认布局的 Samsung param 分区。
+
+## 同镜像热启动复测：已刷写，等待观察
+
+用户继续授权“继续刷入测试”。为核实正常启动选择，本轮不再关机，由 TWRP 中 `adb reboot` 请求正常重启；这属于 warm 复测，不与上面的 cold 记录混用。GPIO 候选四镜像、Test10 Kernel Image、initramfs、DTB、cmdline 和打包参数均未改变，也未直接写入 Samsung param 分区。
+
+本轮归档为 `artifacts/boot-tests/test11-gpio-warm-sm-x710/`。保存刷前 pstore、last_kmsg、Windows USB／网络基线及候选四镜像；新一轮 TWRP 预检通过，四分区写入和回读验证通过，vbmeta/recovery 校验未变，正常重启命令执行成功。用户观察本轮停在三星标识。Windows 采样未发现目标 Linux USB 或 Samsung USB 候选，未新增网络接口，ADB 未连接。已请用户手动返回 TWRP，优先保存 pstore，再读取 last_kmsg；实际 ABL 启动选择待日志确认。停留标识及无 USB 均不能独立证明内核未运行。
+
+Result：PENDING；NoC：Unknown；本轮候选仍在设备上，尚未恢复原四分区。
