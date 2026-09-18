@@ -14,6 +14,7 @@ PYTHON_FILES = (
     "scripts/check-bringup.py",
     "scripts/twrp-entry-marker-test.py",
     "scripts/check-patch-series.py",
+    "scripts/compare-boot-bundles.py",
     "scripts/build-initramfs.py",
     "scripts/build-boot-bundle.py",
     "scripts/verify-boot-bundle.py",
