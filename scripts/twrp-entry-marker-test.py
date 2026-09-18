@@ -369,6 +369,158 @@ def classify(m):
         result += "+USER_RESET"
     return result
 
+def relative_path(path):
+    path = Path(path).resolve()
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+def last_match(summary, key):
+    found = summary.get("matches", {}).get(key, [])
+    return found[-1]["text"] if found else None
+
+def record_interpretation(summary):
+    m = summary.get("matches", {})
+    if m.get("initramfs_ready"):
+        return "已进入 initramfs 用户态并完成 USB NCM 初始化。"
+    if m.get("initramfs_pseudo"):
+        return "已进入 initramfs 用户态并完成基础伪文件系统挂载，后续应继续定位 USB gadget/UDC 初始化。"
+    if m.get("initramfs_devtmpfs"):
+        return "已进入 initramfs 用户态并完成 devtmpfs 挂载，后续卡点位于更晚的 initramfs 初始化。"
+    if m.get("initramfs_busybox"):
+        return "已进入 initramfs 用户态且 BusyBox 链接建立完成，后续卡点在 devtmpfs 或更晚阶段。"
+    if m.get("initramfs_entered"):
+        return "已成功进入 /init 用户态脚本；后续应继续按 initramfs 阶段 marker 定位。"
+    if m.get("rdinit_exec_success"):
+        return "kernel_execve(/init) 已返回成功，但尚未观察到 initramfs 第一条用户态 marker。"
+    if m.get("rdinit_after_exec"):
+        return "kernel_execve(/init) 已返回；应结合返回值判断 exec 成功或失败。"
+    if m.get("rdinit_before_exec"):
+        return "内核已完成全部 initcall，确认 /init 可访问，并到达 kernel_execve(/init) 调用前。"
+    if m.get("basic_after"):
+        return "所有普通 initcall 已完成；问题位于后续 initramfs/用户态交接路径。"
+    if m.get("console_init"):
+        return "Linux 已进入 start_kernel 并建立 persistent console。"
+    if m.get("linux"):
+        return "已观察到主线 Linux printk，但更晚阶段尚未确认。"
+    return "当前日志不足以确认更深执行阶段。"
+
+def write_test_record(rd, state, summary):
+    rd = Path(rd).resolve()
+    tested = Path(state["tested_bundle"]).resolve()
+    manifest = load(tested / "manifest.json")
+    hashes = {
+        part: manifest["files"][part + ".img"]["sha256"]
+        for part in PARTITIONS
+    }
+    matches_map = summary.get("matches", {})
+    initcall_tail = [
+        item["text"] for item in matches_map.get("initcall_debug", [])[-10:]
+    ]
+    key_names = (
+        "linux", "mmu_state", "setup_after_bootmem", "start_after_console",
+        "start_before_rest", "rest_enter", "kernel_init_enter",
+        "basic_after", "rdinit_access", "rdinit_before_exec",
+        "rdinit_after_exec", "rdinit_exec_success", "rdinit_exec_failed",
+        "initramfs_entered", "initramfs_busybox", "initramfs_devtmpfs",
+        "initramfs_pseudo", "initramfs_ready", "fatal_noc", "user_reset",
+        "uefi_end",
+    )
+    record = {
+        "schema": 1,
+        "run_id": rd.name,
+        "generated_utc": now(),
+        "phase": state.get("phase"),
+        "created_utc": state.get("created_utc"),
+        "collected_utc": summary.get("collected_utc"),
+        "restored_utc": state.get("restored_utc"),
+        "observation_seconds": state.get("observation_seconds"),
+        "deepest_stage": summary.get("deepest_stage"),
+        "classification": summary.get("classification"),
+        "interpretation": record_interpretation(summary),
+        "pstore_files": summary.get("pstore_files", []),
+        "tested_bundle": relative_path(tested),
+        "snapshot": relative_path(Path(state["snapshot"])),
+        "image_sha256": hashes,
+        "key_markers": {
+            key: last_match(summary, key)
+            for key in key_names
+            if matches_map.get(key)
+        },
+        "last_initcall_activity": initcall_tail,
+        "artifacts": {
+            "last_kmsg": relative_path(rd / "recovery-after/last_kmsg.txt"),
+            "summary_json": relative_path(rd / "recovery-after/summary.json"),
+            "summary_txt": relative_path(rd / "recovery-after/summary.txt"),
+            "pstore": relative_path(rd / "recovery-after/pstore"),
+            "device": relative_path(rd / "recovery-after/device.json"),
+        },
+    }
+    save(rd / "test-record.json", record)
+
+    md = [
+        "# SM-X710 Boot Test - " + rd.name,
+        "",
+        "## 基本信息",
+        "",
+        "- 创建时间（UTC）：" + str(record["created_utc"] or "-"),
+        "- 日志采集时间（UTC）：" + str(record["collected_utc"] or "-"),
+        "- 恢复时间（UTC）：" + str(record["restored_utc"] or "-"),
+        "- 当前状态：" + str(record["phase"] or "-"),
+        "- 观察窗口：" + str(record["observation_seconds"] or "-") + " 秒",
+        "- 最深阶段：" + str(record["deepest_stage"] or "-"),
+        "- 分类：" + str(record["classification"] or "-"),
+        "- pstore 文件数：" + str(len(record["pstore_files"])),
+        "",
+        "## 实际刷入镜像",
+        "",
+        "| 分区 | SHA256 |",
+        "| --- | --- |",
+    ]
+    for name in PARTITIONS:
+        md.append("| " + name + " | " + hashes[name] + " |")
+    md.extend([
+        "",
+        "- Tested bundle：" + record["tested_bundle"],
+        "- 原始快照：" + record["snapshot"],
+        "",
+        "## 关键执行证据",
+        "",
+    ])
+    if record["key_markers"]:
+        for key, value in record["key_markers"].items():
+            md.append("- " + key + "：" + value)
+    else:
+        md.append("- 未提取到关键 marker。")
+
+    md.extend(["", "## 最后 initcall 活动", ""])
+    if initcall_tail:
+        for line in initcall_tail:
+            md.append("    " + line)
+    else:
+        md.append("未记录 initcall_debug 输出。")
+
+    md.extend([
+        "",
+        "## 结论",
+        "",
+        record["interpretation"],
+        "",
+        "## 日志位置",
+        "",
+    ])
+    for key, value in record["artifacts"].items():
+        md.append("- " + key + "：" + value)
+    md.append("")
+
+    record_name = "boot-test-" + rd.name + ".md"
+    docs_path = ROOT / "docs" / record_name
+    markdown = "\n".join(md)
+    (rd / "TEST-RECORD.md").write_text(markdown)
+    docs_path.write_text(markdown)
+    return rd / "TEST-RECORD.md", docs_path
+
 def cmd_build(args):
     verify_repo()
     clean_stale_source(args.clean_source)
@@ -486,8 +638,11 @@ def cmd_collect(args):
     })
     save(STATE_FILE, state)
     save(rd / "run.json", state)
+    local_record, docs_record = write_test_record(rd, state, summary)
     print((out / "summary.txt").read_text(), end="")
     print("Logs:", out)
+    print("Test record:", local_record)
+    print("Repository record:", docs_record)
     print("Now restore with:")
     print("  python3 scripts/twrp-entry-marker-test.py restore")
 
@@ -499,13 +654,29 @@ def cmd_restore(args):
     twrp_test(args.adb, args.snapshot, tested, rd / "restore", "--restore")
     state["phase"] = "restored"
     state["updated_utc"] = now()
+    state["restored_utc"] = state["updated_utc"]
     save(STATE_FILE, state)
     save(rd / "run.json", state)
+    summary_path = rd / "recovery-after/summary.json"
+    if summary_path.is_file():
+        local_record, docs_record = write_test_record(rd, state, load(summary_path))
+        print("Updated test record:", local_record)
+        print("Updated repository record:", docs_record)
     print("PASS: original four boot partitions restored; device left in TWRP")
+
+def cmd_record(args):
+    rd = run_dir(args)
+    run_state = load(rd / "run.json") if (rd / "run.json").is_file() else active()
+    summary_path = rd / "recovery-after/summary.json"
+    if not summary_path.is_file():
+        raise RuntimeError("no collected summary for run: " + str(rd))
+    local_record, docs_record = write_test_record(rd, run_state, load(summary_path))
+    print("Test record:", local_record)
+    print("Repository record:", docs_record)
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("command", choices=("build", "flash", "collect", "restore"))
+    p.add_argument("command", choices=("build", "flash", "collect", "restore", "record"))
     p.add_argument("--adb", type=Path, default=adb_default())
     p.add_argument("--snapshot", type=Path, default=SNAPSHOT)
     p.add_argument("--bundle", type=Path, default=BUNDLE)
@@ -525,6 +696,7 @@ def main():
         "flash": cmd_flash,
         "collect": cmd_collect,
         "restore": cmd_restore,
+        "record": cmd_record,
     }[args.command](args)
 
 if __name__ == "__main__":
