@@ -1,15 +1,18 @@
 #!/bin/busybox sh
 # SPDX-License-Identifier: MIT
+echo 'GTS9WIFI: initramfs init entered' > /dev/kmsg 2>/dev/null || true
 export PATH=/bin:/sbin
 busybox --install -s /bin
+echo 'GTS9WIFI: initramfs busybox links ready' > /dev/kmsg 2>/dev/null || true
 mount -t devtmpfs devtmpfs /dev
-echo 'GTS9WIFI: initramfs init entered' > /dev/kmsg 2>/dev/null || true
+echo 'GTS9WIFI: initramfs devtmpfs mounted' > /dev/kmsg 2>/dev/null || true
 mkdir -p /dev/pts /proc /sys /run /tmp /sys/kernel/config
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devpts devpts /dev/pts
 mount -t tmpfs tmpfs /run
 mount -t tmpfs tmpfs /tmp
+echo 'GTS9WIFI: initramfs pseudo filesystems ready' > /dev/kmsg 2>/dev/null || true
 echo 'Galaxy Tab S9 mainline diagnostic initramfs (experimental)' > /dev/kmsg
 mount -t configfs configfs /sys/kernel/config
 G=/sys/kernel/config/usb_gadget/gts9wifi
