@@ -63,3 +63,5 @@ make check
 四分区恢复脚本及 microSD 恢复包使用方法见 [TWRP 恢复说明](twrp-restore.md)。
 
 第八次测试使用 [固定的首次 DTB](boot-test-20260918-eighth.md)，保留旧 no-map 区域，构建强制检查二进制哈希。此时输入仍无重叠，但 ABL 可能增加同范围节点；不能套用现代布局的 --abl-updated 检查或认定固件 NoC 已解决。
+
+第十次单变量测试移除默认 cmdline 中的 `initcall_debug`，保留 `loglevel=8 ignore_loglevel` 及 setup_arch / console 的持久日志诊断；内核和固定 DTB 与第八次相同。后续日志缺失仍不能直接证明内核未执行。

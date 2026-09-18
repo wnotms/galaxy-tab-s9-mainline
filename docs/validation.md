@@ -33,3 +33,7 @@
 第六版新增 `record-sec-log-setup-arch-checkpoints.patch`，在五个架构初始化步骤后通过受 flat DT 检查保护的 4 KiB 临时映射写入标记，并在正式 console 接管时保留早期索引。全部七个补丁在干净固定源码上应用通过，与实际编译源码逐字节一致；`make bundle`、四镜像检查和 `make check` 通过，setup.o 包含五处 early_checkpoint 调用重定位，正式 console 初始化仍在 console initcall 区间。[第六次实机测试](boot-test-20260918-sixth.md)仍未枚举 USB，五个早期标记和主线输出均未取得；过滤、映射、写入、停止位置及复位保留行为仍未确认。日志已归档，原四个启动分区已恢复并回读校验。
 
 第七版增加精确保留区 reg 搜索及根 compatible 结果记录；八个补丁的干净应用、构建、四镜像校验及 `make check` 通过。新增恢复脚本的实机 --check 和缺失备份拒绝检查通过。四个试验镜像已写入、回读并重启，recovery / vbmeta 未改变；Windows 未观察到 USB 枚举，回收日志没有 compatible 诊断或五个早期标记，完整启动未通过。microSD 挂载完成后，独立 TWRP 脚本已实际恢复四个原分区，回读匹配，recovery / vbmeta 保持不变，设备留在 TWRP。详见 [第七次测试](boot-test-20260918-seventh.md)。
+
+参照 Ultra 固定已验证固件 DTB 的策略，第八版重新构建首次 DTS，DTB 与首次实测镜像逐字节一致，固定哈希记录并由构建脚本强制核对。输入检查只对这个精确历史二进制允许旧 no-map 保留区；修改一个同长度 model 字节后被拒绝，现代布局归档仍可验证。第八次实机仍无主线输出或 USB，日志已归档，原分区已恢复。第九次用首次真实内核对照，boot 与首次镜像逐字节一致，vendor_boot 与第八次一致；已刷写回读并重启，未观察到 USB，日志没有主线版本；原四分区已恢复，最终六个分区哈希匹配，设备留在 TWRP。
+
+第十次只移除 initcall_debug，内核、DTB、initramfs 及 boot / init_boot / dtbo 与第八次一致。vendor_boot 的正文除命令行字段外也一致。四镜像检查和 TWRP 预检通过，四个分区已刷写回读并重启，Windows 未观察到 USB，等待手动回到 TWRP；第十次日志尚未回收、原分区尚未恢复。

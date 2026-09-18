@@ -2,9 +2,9 @@
 
 面向 **Samsung Galaxy Tab S9 Wi-Fi / SM-X710 / gts9wifi** 的独立移植仓库。基于 [S9 Ultra 项目](https://github.com/agcarbajo/ubuntu-galaxy-tab-s9-ultra)的启动经验，使用本机通过 TWRP 提取的分区和设备树建立 S9 板级配置。
 
-当前是**可构建的启动调试基线**：主线内核、独立 S9 DTB、RAM 中运行的 USB 网络诊断环境，以及 Android v4 启动镜像生成工具。**首次实机日志确认主线内核执行、8 个 CPU 启动及 initramfs 解包；约 31 毫秒后固件报告 NoC 致命错误，完整启动尚未通过。第六次增加五个 setup_arch 早期标记，仍未取得标记、主线输出或 USB 枚举；过滤、映射、写入及复位保留环节尚需区分。第七次改按精确 reg 查找日志区并记录 compatible，仍未取得早期标记或 USB 枚举。七次日志均已归档，原四分区已恢复；新 TWRP 恢复脚本通过实机写入及回读验证，设备留在 TWRP。屏幕和触控尚未实现，不能作为可用的 Ubuntu 桌面系统。**
+当前是**可构建的启动调试基线**：主线内核、独立 S9 DTB、RAM 中运行的 USB 网络诊断环境，以及 Android v4 启动镜像生成工具。**首次实机日志确认主线内核执行、8 个 CPU 启动及 initramfs 解包；约 31 毫秒后固件报告 NoC 致命错误，完整启动尚未通过。第六次增加五个 setup_arch 早期标记，仍未取得标记、主线输出或 USB 枚举；过滤、映射、写入及复位保留环节尚需区分。参照 Ultra 固定固件端 DTB，第八次恢复首次 DTB，仍没有主线日志或 USB 枚举，原分区已恢复。第九次换回首次真实内核仍无主线输出，原分区已恢复。第十次仅移除 initcall_debug，已刷写回读并重启，未观察到 USB；等待手动返回 TWRP 提取日志并恢复，当前仍是第十次测试镜像。屏幕和触控尚未实现，不能作为可用的 Ubuntu 桌面系统。**
 
-实机记录：[首次](docs/boot-test-20260918.md)、[第二次](docs/boot-test-20260918-second.md)、[第三次](docs/boot-test-20260918-third.md)、[第四次](docs/boot-test-20260918-fourth.md)、[第五次](docs/boot-test-20260918-fifth.md)、[第六次](docs/boot-test-20260918-sixth.md)、[第七次](docs/boot-test-20260918-seventh.md)。
+实机记录：[首次](docs/boot-test-20260918.md)、[第二次](docs/boot-test-20260918-second.md)、[第三次](docs/boot-test-20260918-third.md)、[第四次](docs/boot-test-20260918-fourth.md)、[第五次](docs/boot-test-20260918-fifth.md)、[第六次](docs/boot-test-20260918-sixth.md)、[第七次](docs/boot-test-20260918-seventh.md)、[第八次](docs/boot-test-20260918-eighth.md)、[第九次](docs/boot-test-20260918-ninth.md)、[第十次](docs/boot-test-20260918-tenth.md)。
 
 ## 当前内容
 
@@ -12,10 +12,10 @@
 |---|---|
 | Linux `v7.2-rc3`、Clang/LLVM ARM64 构建 | 已完成本机编译 |
 | S9 DTS：board `04`，覆盖实机 revision `6` | 已生成 DTB 并校验 |
-| Samsung 保留内存与持久内核日志 | 首次已回收主线日志；第七版仍无早期标记，需验证有效 DTB、映射及复位保留 |
+| Samsung 保留内存与持久内核日志 | 首次已回收主线日志；第八版恢复首次 DTB 仍无早期标记，第九次首次内核对照待回收日志 |
 | eUSB2、NXP PTN3222、USB2 peripheral / NCM | 驱动已编入，枚举待实测 |
 | microSD / ext4 | 驱动已编入；当前 initramfs 不自动挂载 SD |
-| Android v4 的四个启动镜像 | 七次实机写入及回读通过；均未观察到 USB 枚举，日志已归档且原分区已恢复 |
+| Android v4 的四个启动镜像 | 前九次写入及回读通过且原分区均已恢复，第十次测试中 |
 | ANA38407 AMSA10FA01、STM FTS1BA90A、Wacom | 保留实机资料；未启用驱动 |
 | WLAN、音频、充电、相机、指纹、GPU | 后续阶段，当前未启用 |
 
