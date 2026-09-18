@@ -77,6 +77,24 @@ def main() -> int:
         check_shell(shell, path)
         print(f"PASS: {shell} syntax: {rel}")
 
+    config_text = (ROOT / "kernel/config/gts9wifi-bringup.config").read_text()
+    for required_config in (
+        "CONFIG_ARM_PSCI_CPUIDLE=y",
+        "CONFIG_ARM_PSCI_CPUIDLE_DOMAIN=y",
+        "CONFIG_PM_GENERIC_DOMAINS=y",
+        "CONFIG_PM_GENERIC_DOMAINS_OF=y",
+        "CONFIG_QCOM_RPMH=y",
+        "CONFIG_QCOM_CLK_RPMH=y",
+        "CONFIG_SM_TCSRCC_8550=y",
+        "CONFIG_PHY_SNPS_EUSB2=y",
+        "CONFIG_USB_DWC3_QCOM=y",
+    ):
+        if required_config not in config_text:
+            raise RuntimeError(
+                "missing required bring-up config fragment entry: " + required_config
+            )
+    print("PASS: PSCI/RPMh/TCSR/eUSB2/DWC3 config chain")
+
     init_text = (ROOT / "initramfs/init").read_text()
     for marker in REQUIRED_INIT_MARKERS:
         if marker not in init_text:

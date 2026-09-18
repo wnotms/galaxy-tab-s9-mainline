@@ -73,3 +73,40 @@ bind 仍返回：
 - direct link 为 `dormant/not tracked`：supplier 尚未 AVAILABLE，优先沿递归链找最上游阻塞点；
 - TCSR 的上游若指向未 ready 的 RPMh clock controller，则下一步集中到 `apps_rsc/rpmhcc`；
 - 如果所有 direct device-link 都为 `available`，但手动 bind 仍 EAGAIN，再给 `dwc3_qcom_probe()` / `dwc3_core_probe()` 加内核阶段 marker。
+
+
+## 后续 grep 分析：RPMh RSC 为更上游阻塞点
+
+对本轮 `last_kmsg.txt` 做 probe 关键字 grep 后，确认 deferred-probe 链条比 DWC3 更上游：
+
+- `17a00000.rsc`（RPMh RSC）反复返回 `-517`；
+- `1fc0000.clock-controller`（TCSR）随后反复返回 `-517`；
+- `88e3000.phy`（SM8550 eUSB2 PHY）反复返回 `-517`；
+- `a600000.usb` 最终反复返回 `-517`。
+
+固定 SM8550 DTSI 中 `apps_rsc` 声明：
+
+`power-domains = <&cluster_pd>`
+
+而 `cluster_pd` 是 PSCI hierarchical cpuidle domain provider 提供的 genpd。
+
+仓库的 kernel build 使用：
+
+`KCONFIG_ALLCONFIG=kernel/config/gts9wifi-bringup.config allnoconfig`
+
+当前 fragment 虽然启用了 `CONFIG_ARM_PSCI_CPUIDLE=y`、`CONFIG_PM_GENERIC_DOMAINS_OF=y`，但没有显式启用 `CONFIG_ARM_PSCI_CPUIDLE_DOMAIN=y`。在 allnoconfig 模式下，这会使 PSCI domain 支持有被裁掉的风险，从而导致 `cluster_pd` provider 缺失，解释 RPMh RSC 的持续 deferred probe。
+
+下一轮改为显式启用：
+
+`CONFIG_ARM_PSCI_CPUIDLE_DOMAIN=y`
+
+该选项会选择 `CONFIG_DT_IDLE_GENPD`。生成后的最终 `.config` 还会由 `scripts/check-config.py` 同时验证：
+
+- `CONFIG_ARM_PSCI_CPUIDLE=y`
+- `CONFIG_ARM_PSCI_CPUIDLE_DOMAIN=y`
+- `CONFIG_DT_IDLE_GENPD=y`
+- `CONFIG_PM_GENERIC_DOMAINS_OF=y`
+
+如果修复有效，预期链条应依次出现成功 probe：
+
+`17a00000.rsc -> rpmhcc -> 1fc0000 TCSR -> 88e3000 eUSB2 PHY -> a600000 DWC3 -> UDC`
