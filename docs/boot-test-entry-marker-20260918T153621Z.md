@@ -80,19 +80,15 @@ DTS 中当前 USB 路径为：
 
 ## 根因分析
 
-当前 initramfs 脚本在挂载 sysfs 前执行：
+本轮能够确定的是：**configfs mount 失败发生在任何可靠的 gadget/UDC 判定之前。**
 
-`mkdir -p /sys/kernel/config`
+最初怀疑脚本在挂载 sysfs 前创建 `/sys/kernel/config`，随后 sysfs 覆盖该目录树，导致 mountpoint 不可见。进一步核对固定 Linux `a13c140cc289c0b7b3770bce5b3ad42ab35074aa` 的 `fs/configfs/mount.c` 后发现，`configfs_init()` 会调用：
 
-随后：
+`sysfs_create_mount_point(kernel_kobj, "config")`
 
-`mount -t sysfs sysfs /sys`
+因此内核正常完成 `configfs_init` 后，本应由 sysfs 提供 `/sys/kernel/config` mountpoint。仅凭目录创建顺序不能把本轮失败的根因定死为 mountpoint 被覆盖。
 
-会用新的 sysfs 挂载覆盖原先的 `/sys` 目录树，因此之前创建的 `/sys/kernel/config` mountpoint 被遮蔽。紧接着执行：
-
-`mount -t configfs configfs /sys/kernel/config`
-
-存在 mountpoint 不再可见而失败的风险，与本轮实际的 `configfs mount failed` 完全一致。
+下一轮已增加 mountpoint 是否存在、userspace fallback mkdir 结果和 configfs mount stderr 的持久日志；这些结果才用于继续判断真正的 mount 失败原因。
 
 ## 后续修改
 
