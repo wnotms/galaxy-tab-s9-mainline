@@ -1,0 +1,24 @@
+Subject: [PATCH] init: record SM-X710 rdinit exec result
+
+Record the return value from kernel_execve("/init") before kernel_init returns
+toward userspace. This distinguishes a successful exec handoff from an exec
+failure when the initramfs itself has not yet emitted a userspace marker.
+
+diff --git a/init/main.c b/init/main.c
+--- a/init/main.c
++++ b/init/main.c
+@@ -1588,13 +1588,16 @@
+ 	if (ramdisk_execute_command) {
+ 		pr_info("GTS9WIFI: kernel_init before_rdinit_exec path=%s\n",
+ 			ramdisk_execute_command);
+ 		ret = run_init_process(ramdisk_execute_command);
+-		if (!ret)
++		pr_info("GTS9WIFI: kernel_init after_rdinit_exec ret=%d\n", ret);
++		if (!ret) {
++			pr_info("GTS9WIFI: kernel_init rdinit_exec_success\n");
+ 			return 0;
++		}
+ 		pr_info("GTS9WIFI: kernel_init rdinit_exec_failed ret=%d\n", ret);
+ 		pr_err("Failed to execute %s (error %d)\n",
+ 		       ramdisk_execute_command, ret);
+ 	}
