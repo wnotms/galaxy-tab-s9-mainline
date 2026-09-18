@@ -37,3 +37,5 @@
 参照 Ultra 固定已验证固件 DTB 的策略，第八版重新构建首次 DTS，DTB 与首次实测镜像逐字节一致，固定哈希记录并由构建脚本强制核对。输入检查只对这个精确历史二进制允许旧 no-map 保留区；修改一个同长度 model 字节后被拒绝，现代布局归档仍可验证。第八次实机仍无主线输出或 USB，日志已归档，原分区已恢复。第九次用首次真实内核对照，boot 与首次镜像逐字节一致，vendor_boot 与第八次一致；已刷写回读并重启，未观察到 USB，日志没有主线版本；原四分区已恢复，最终六个分区哈希匹配，设备留在 TWRP。
 
 第十次只移除 initcall_debug，内核、DTB、initramfs 及 boot / init_boot / dtbo 与第八次一致。vendor_boot 的正文除命令行字段外也一致。四镜像检查和 TWRP 预检通过，四个分区已刷写回读并重启，Windows 未观察到 USB；回到 TWRP 后日志确认参数已移除，但没有主线版本或诊断标记。日志已归档，原四分区已恢复，最终六个分区哈希与原分区匹配，设备留在 TWRP。问题尚未修复。
+
+按用户 test11.md 构建 GPIO 36–39 保留候选，仅改变 Test10 基线 TLMM 的 gpio-reserved-ranges。原内核／配置和 initramfs 复用，最终 vendor_boot DTB 已核对，四镜像检查、全树单属性差异及篡改拒绝检查通过。依据该文件不自动刷入的要求，尚未进行本 GPIO 候选实机启动；不能判定 NoC 已修复。见 [GPIO Test11](boot-test-20260918-eleventh.md)。

@@ -87,3 +87,5 @@ ABL 交接主线内核及 TWRP 回收持久日志已验证；下一步利用 `in
 本次检查结果见 [验证记录](docs/validation.md)。来源、补丁调整和许可证见 [kernel/PROVENANCE.md](kernel/PROVENANCE.md)与 [LICENSE](LICENSE)。Linux 源码和工具缓存不提交到此仓库；默认分支为 `main`。
 
 TWRP 四分区恢复包和独立脚本见 [恢复说明](docs/twrp-restore.md)。最新三次修复与对照结果见 [第十次测试](docs/boot-test-20260918-tenth.md)。
+
+按用户 test11.md 准备的 [GPIO 36–39 保留候选](docs/boot-test-20260918-eleventh.md) 已构建和验证，复用 Test10 内核，产物为 artifacts/test11/。本候选尚未刷入，不能视为 NoC 修复已确认。

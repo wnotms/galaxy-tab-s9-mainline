@@ -24,5 +24,16 @@
       0,
       56623104
     ]
+  },
+  "gpio_reserved_variant": {
+    "sha256": "e59fddefe738a235e8a70f7e6ee6d1f2ebee6e0a5d580a91844f96988b04f025",
+    "size": 116855,
+    "tlmm_path": "/soc@0/pinctrl@f100000",
+    "gpio_reserved_ranges": [
+      36,
+      4
+    ],
+    "semantic_delta": "Only gpio-reserved-ranges added to existing upstream SM8550 TLMM; all other nodes/properties and FDT reserve-map unchanged",
+    "stock_live_dtb_sha256": "9d645c1d0051f65d43f22bc16aa0ebd92b4e7f465f0465c61a43a79d7be80bf3"
   }
 }

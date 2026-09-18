@@ -221,3 +221,7 @@
  * Their downstream facts are recorded in device/stock-hardware.json.
  * UFS stays disabled: the diagnostic initramfs runs entirely in RAM.
  */
+
+&tlmm {
+ gpio-reserved-ranges = <36 4>;
+};

@@ -35,12 +35,17 @@ abl_reservations = {
 # This never permits arbitrary legacy trees or removes protected-range checks.
 baseline = json.loads((Path(__file__).resolve().parent.parent /
                        'device/firmware-dtb-baseline.json').read_text())
+gpio_variant = baseline.get('gpio_reserved_variant', {})
+dtb_hash = hashlib.sha256(args.dtb.read_bytes()).hexdigest()
+if dtb_hash == gpio_variant.get('sha256'):
+    require(cells(nodes[gpio_variant['tlmm_path']]['gpio-reserved-ranges']) == (36,4),
+            'Wrong pinned secure-GPIO reservation')
 legacy_paths = ['/reserved-memory/' + name for name in baseline['legacy_reservations']]
 legacy = any(path in nodes for path in legacy_paths)
 if legacy:
     require(not args.abl_updated, 'Legacy baseline: ABL duplicate reservations require separate runtime review')
-    require(hashlib.sha256(args.dtb.read_bytes()).hexdigest() == baseline['sha256'],
-            'Legacy reservation layout requires the exact first boot-confirmed DTB')
+    require(dtb_hash in (baseline['sha256'], gpio_variant.get('sha256')),
+            'Legacy reservation layout requires a pinned baseline or GPIO-only variant')
     for name, expected in baseline['legacy_reservations'].items():
         path = '/reserved-memory/' + name
         require(path in nodes and cells(nodes[path]['reg']) == tuple(expected),
@@ -81,5 +86,5 @@ for path, properties in json.loads(stock_path.read_text())['nodes'].items():
     require(any(begin<=start and begin+length>=start+size for begin,length,_ in ranges), 'Unprotected stock carveout: '+path)
     covered += 1
 if legacy:
-    print('Pinned first boot-confirmed firmware DTB: legacy ranges retained no-map; ABL may add exact duplicates')
+    print('Pinned baseline / GPIO-only candidate: legacy ranges retained no-map; ABL may add exact duplicates')
 print(f"Verified S9 identity, USB parameters, {covered} stock carveouts, no reservation overlap and no Ultra panel/touch; ABL reservations {'present' if args.abl_updated else 'legacy baseline, firmware duplicates expected' if legacy else 'deferred to bootloader'}")
