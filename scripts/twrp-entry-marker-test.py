@@ -87,6 +87,7 @@ PATTERNS = {
     "mount_proc_failed": re.compile(r"GTS9WIFI: mount proc failed"),
     "mount_sysfs_success": re.compile(r"GTS9WIFI: mount sysfs success"),
     "mount_sysfs_failed": re.compile(r"GTS9WIFI: mount sysfs failed"),
+    "mount_devpts_success": re.compile(r"GTS9WIFI: mount devpts success"),
     "mount_devpts_failed": re.compile(r"GTS9WIFI: mount devpts failed"),
     "mount_run_failed": re.compile(r"GTS9WIFI: mount run_tmpfs failed"),
     "mount_tmp_failed": re.compile(r"GTS9WIFI: mount tmp_tmpfs failed"),
@@ -109,6 +110,8 @@ PATTERNS = {
     "udc_class": re.compile(r"GTS9WIFI: UDC class (?:entries=|missing)"),
     "deferred_probe": re.compile(r"GTS9WIFI: deferred_probe "),
     "platform_driver": re.compile(r"GTS9WIFI: platform_driver "),
+    "platform_device": re.compile(r"GTS9WIFI: platform_device "),
+    "manual_dwc3_bind": re.compile(r"GTS9WIFI: manual_dwc3_bind "),
     "usb0_present": re.compile(r"GTS9WIFI: usb0 present"),
     "usb0_missing": re.compile(r"GTS9WIFI: usb0 missing after UDC bind"),
     "usb0_configured": re.compile(r"GTS9WIFI: usb0 configured address="),
@@ -469,6 +472,8 @@ def record_interpretation(summary):
     if m.get("usb_host_timeout"):
         return "USB gadget 已进入设备端本地就绪阶段，但主机在观察窗口内没有把 UDC state 推进到 configured；应继续分析主机枚举或物理 USB 链路。"
     if m.get("udc_bind_timeout"):
+        if m.get("manual_dwc3_bind"):
+            return "configfs 与 USB gadget 已正常建立，但等待窗口内没有 UDC；已记录 a600000 platform device、dwc3-qcom 手动 bind 结果和实际 driver binding，应依据这些结果定位 DWC3 probe。"
         return "initramfs 已运行到 USB gadget 配置，但没有在等待窗口内成功绑定任何 UDC；应检查 DWC3/UDC 驱动 probe 与设备树。"
     if m.get("usb_local_ready"):
         return "USB gadget 已成功绑定 UDC，且设备端 usb0/NCM 本地栈已配置；仍需结合 UDC state 判断主机枚举是否完成。"
@@ -517,7 +522,8 @@ def write_test_record(rd, state, summary):
         "rdinit_after_exec", "rdinit_exec_success", "rdinit_exec_failed",
         "initramfs_entered", "initramfs_busybox", "initramfs_devtmpfs",
         "mount_devtmpfs_failed", "mount_proc_success", "mount_proc_failed",
-        "mount_sysfs_success", "mount_sysfs_failed", "mount_devpts_failed",
+        "mount_sysfs_success", "mount_sysfs_failed",
+        "mount_devpts_success", "mount_devpts_failed",
         "mount_run_failed", "mount_tmp_failed", "initramfs_pseudo",
         "initramfs_pseudo_incomplete", "filesystem_configfs",
         "configfs_mountpoint", "configfs_primary_failed",
@@ -526,6 +532,7 @@ def write_test_record(rd, state, summary):
         "udc_test_skipped", "udc_no_controller", "udc_candidate",
         "udc_bind_success", "udc_bind_failed", "udc_bind_timeout",
         "udc_class", "deferred_probe", "platform_driver",
+        "platform_device", "manual_dwc3_bind",
         "usb0_present", "usb0_missing", "usb0_configured",
         "usb0_config_failed", "telnet_started", "telnet_failed",
         "usb_local_ready", "udc_state", "usb_host_configured",
