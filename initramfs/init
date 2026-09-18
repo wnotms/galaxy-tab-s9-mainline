@@ -6,72 +6,98 @@ busybox --install -s /bin
 echo 'GTS9WIFI: initramfs busybox links ready' > /dev/kmsg 2>/dev/null || true
 mount -t devtmpfs devtmpfs /dev
 echo 'GTS9WIFI: initramfs devtmpfs mounted' > /dev/kmsg 2>/dev/null || true
-mkdir -p /dev/pts /proc /sys /run /tmp /sys/kernel/config
+mkdir -p /dev/pts /proc /sys /run /tmp
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
+# /sys/kernel/config must be created after sysfs is mounted; creating it
+# beforehand is hidden by the sysfs mount.
+mkdir -p /sys/kernel/config
 mount -t devpts devpts /dev/pts
 mount -t tmpfs tmpfs /run
 mount -t tmpfs tmpfs /tmp
 echo 'GTS9WIFI: initramfs pseudo filesystems ready' > /dev/kmsg 2>/dev/null || true
 echo 'Galaxy Tab S9 mainline diagnostic initramfs (experimental)' > /dev/kmsg
-if mount -t configfs configfs /sys/kernel/config; then
+configfs_ok=0
+: > /run/configfs-mount.err
+if grep -q ' /sys/kernel/config configfs ' /proc/mounts 2>/dev/null; then
+ configfs_ok=1
+ echo 'GTS9WIFI: configfs already mounted' > /dev/kmsg 2>/dev/null || true
+elif mount -t configfs configfs /sys/kernel/config 2>/run/configfs-mount.err; then
+ configfs_ok=1
  echo 'GTS9WIFI: configfs mounted' > /dev/kmsg 2>/dev/null || true
 else
- echo 'GTS9WIFI: configfs mount failed' > /dev/kmsg 2>/dev/null || true
+ err="$(cat /run/configfs-mount.err 2>/dev/null)"
+ echo "GTS9WIFI: configfs mount failed error=$err" > /dev/kmsg 2>/dev/null || true
 fi
 
 G=/sys/kernel/config/usb_gadget/gts9wifi
-mkdir -p "$G"
-echo 0x1d6b > "$G/idVendor"
-echo 0x0104 > "$G/idProduct"
-mkdir -p "$G/strings/0x409"
-echo 'S9-bringup' > "$G/strings/0x409/serialnumber"
-echo 'Mainline bring-up' > "$G/strings/0x409/manufacturer"
-echo 'SM-X710 USB diagnostic network' > "$G/strings/0x409/product"
-mkdir -p "$G/configs/c.1/strings/0x409" "$G/functions/ncm.usb0"
-echo 'USB NCM' > "$G/configs/c.1/strings/0x409/configuration"
-echo 250 > "$G/configs/c.1/MaxPower"
-echo '02:71:00:00:00:01' > "$G/functions/ncm.usb0/dev_addr"
-echo '02:71:00:00:00:02' > "$G/functions/ncm.usb0/host_addr"
-ln -s "$G/functions/ncm.usb0" "$G/configs/c.1/ncm.usb0"
-echo 'GTS9WIFI: USB gadget configured' > /dev/kmsg 2>/dev/null || true
+gadget_ok=0
+udc=''
+
+if [ "$configfs_ok" -eq 1 ]; then
+ : > /run/gadget-setup.err
+ if (
+  mkdir -p "$G" &&
+  echo 0x1d6b > "$G/idVendor" &&
+  echo 0x0104 > "$G/idProduct" &&
+  mkdir -p "$G/strings/0x409" &&
+  echo 'S9-bringup' > "$G/strings/0x409/serialnumber" &&
+  echo 'Mainline bring-up' > "$G/strings/0x409/manufacturer" &&
+  echo 'SM-X710 USB diagnostic network' > "$G/strings/0x409/product" &&
+  mkdir -p "$G/configs/c.1/strings/0x409" "$G/functions/ncm.usb0" &&
+  echo 'USB NCM' > "$G/configs/c.1/strings/0x409/configuration" &&
+  echo 250 > "$G/configs/c.1/MaxPower" &&
+  echo '02:71:00:00:00:01' > "$G/functions/ncm.usb0/dev_addr" &&
+  echo '02:71:00:00:00:02' > "$G/functions/ncm.usb0/host_addr" &&
+  ln -s "$G/functions/ncm.usb0" "$G/configs/c.1/ncm.usb0"
+ ) 2>/run/gadget-setup.err; then
+  gadget_ok=1
+  echo 'GTS9WIFI: USB gadget configured' > /dev/kmsg 2>/dev/null || true
+ else
+  err="$(cat /run/gadget-setup.err 2>/dev/null)"
+  echo "GTS9WIFI: USB gadget setup failed error=$err" > /dev/kmsg 2>/dev/null || true
+ fi
+else
+ echo 'GTS9WIFI: USB gadget skipped because configfs unavailable' > /dev/kmsg 2>/dev/null || true
+fi
 
 # Probe deferral may leave the controller unavailable briefly. Record the
 # distinction between no UDC, bind failure, local usb0 setup and host enum.
-udc=''
-last_candidate=''
-i=0
-while [ "$i" -lt 30 ]; do
- seen=0
- for controller in /sys/class/udc/*; do
-  [ -e "$controller" ] || continue
-  seen=1
-  name="${controller##*/}"
-  if [ "$name" != "$last_candidate" ]; then
-   echo "GTS9WIFI: UDC candidate controller=$name" > /dev/kmsg 2>/dev/null || true
-   last_candidate="$name"
-  fi
-  : > /run/udc-bind.err
-  if echo "$name" > "$G/UDC" 2>/run/udc-bind.err; then
-   bound="$(cat "$G/UDC" 2>/dev/null)"
-   if [ "$bound" = "$name" ]; then
-    udc="$name"
-    echo "GTS9WIFI: UDC bind success controller=$udc attempt=$i" > /dev/kmsg 2>/dev/null || true
-    break
+if [ "$gadget_ok" -eq 1 ]; then
+ last_candidate=''
+ i=0
+ while [ "$i" -lt 30 ]; do
+  seen=0
+  for controller in /sys/class/udc/*; do
+   [ -e "$controller" ] || continue
+   seen=1
+   name="${controller##*/}"
+   if [ "$name" != "$last_candidate" ]; then
+    echo "GTS9WIFI: UDC candidate controller=$name" > /dev/kmsg 2>/dev/null || true
+    last_candidate="$name"
    fi
-   echo "GTS9WIFI: UDC bind verification failed controller=$name bound=$bound" > /dev/kmsg 2>/dev/null || true
-  else
-   err="$(cat /run/udc-bind.err 2>/dev/null)"
-   echo "GTS9WIFI: UDC bind failed controller=$name error=$err" > /dev/kmsg 2>/dev/null || true
+   : > /run/udc-bind.err
+   if echo "$name" > "$G/UDC" 2>/run/udc-bind.err; then
+    bound="$(cat "$G/UDC" 2>/dev/null)"
+    if [ "$bound" = "$name" ]; then
+     udc="$name"
+     echo "GTS9WIFI: UDC bind success controller=$udc attempt=$i" > /dev/kmsg 2>/dev/null || true
+     break
+    fi
+    echo "GTS9WIFI: UDC bind verification failed controller=$name bound=$bound" > /dev/kmsg 2>/dev/null || true
+   else
+    err="$(cat /run/udc-bind.err 2>/dev/null)"
+    echo "GTS9WIFI: UDC bind failed controller=$name error=$err" > /dev/kmsg 2>/dev/null || true
+   fi
+  done
+  [ -n "$udc" ] && break
+  if [ "$seen" -eq 0 ] && [ "$i" -eq 0 ]; then
+   echo 'GTS9WIFI: UDC no controller yet' > /dev/kmsg 2>/dev/null || true
   fi
+  i=$((i + 1))
+  /bin/busybox sleep 1
  done
- [ -n "$udc" ] && break
- if [ "$seen" -eq 0 ] && [ "$i" -eq 0 ]; then
-  echo 'GTS9WIFI: UDC no controller yet' > /dev/kmsg 2>/dev/null || true
- fi
- i=$((i + 1))
- sleep 1
-done
+fi
 
 if [ -z "$udc" ]; then
  echo 'GTS9WIFI: UDC bind timeout' > /dev/kmsg 2>/dev/null || true
@@ -116,7 +142,7 @@ else
    break
   fi
   j=$((j + 1))
-  sleep 1
+  /bin/busybox sleep 1
  done
 
  if [ "$host_configured" -eq 1 ]; then
@@ -129,5 +155,5 @@ fi
 # Never mount internal UFS or modify Android partitions. Stay in RAM.
 while :; do
  setsid sh -c 'exec sh </dev/console >/dev/console 2>&1'
- sleep 5
+ /bin/busybox sleep 5
 done
