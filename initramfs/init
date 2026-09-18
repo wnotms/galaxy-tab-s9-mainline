@@ -3,45 +3,131 @@
 echo 'GTS9WIFI: initramfs init entered' > /dev/kmsg 2>/dev/null || true
 export PATH=/bin:/sbin
 busybox --install -s /bin
-echo 'GTS9WIFI: initramfs busybox links ready' > /dev/kmsg 2>/dev/null || true
-mount -t devtmpfs devtmpfs /dev
-echo 'GTS9WIFI: initramfs devtmpfs mounted' > /dev/kmsg 2>/dev/null || true
-mkdir -p /dev/pts /proc /sys /run /tmp
-mount -t proc proc /proc
-mount -t sysfs sysfs /sys
-# configfs_init() normally creates /sys/kernel/config as a sysfs mountpoint.
-# Check it after mounting sysfs; mkdir is only a fallback and its error is
-# useful diagnostic evidence if the kernel mountpoint is unexpectedly absent.
-if [ -d /sys/kernel/config ]; then
- echo 'GTS9WIFI: configfs mountpoint present' > /dev/kmsg 2>/dev/null || true
-else
- : > /run/configfs-mkdir.err
- if mkdir -p /sys/kernel/config 2>/run/configfs-mkdir.err; then
-  echo 'GTS9WIFI: configfs mountpoint created by userspace' > /dev/kmsg 2>/dev/null || true
- else
-  err="$(cat /run/configfs-mkdir.err 2>/dev/null)"
-  echo "GTS9WIFI: configfs mountpoint missing error=$err" > /dev/kmsg 2>/dev/null || true
+
+klog()
+{
+ echo "GTS9WIFI: $*" > /dev/kmsg 2>/dev/null || true
+}
+
+mount_checked()
+{
+ label="$1"
+ fstype="$2"
+ source="$3"
+ target="$4"
+ errfile="/run/mount-$label.err"
+ : > "$errfile"
+ if /bin/busybox mount -t "$fstype" "$source" "$target" >"$errfile" 2>&1; then
+  klog "mount $label success target=$target"
+  return 0
  fi
-fi
-mount -t devpts devpts /dev/pts
-mount -t tmpfs tmpfs /run
-mount -t tmpfs tmpfs /tmp
-echo 'GTS9WIFI: initramfs pseudo filesystems ready' > /dev/kmsg 2>/dev/null || true
-echo 'Galaxy Tab S9 mainline diagnostic initramfs (experimental)' > /dev/kmsg
-configfs_ok=0
-: > /run/configfs-mount.err
-if grep -q ' /sys/kernel/config configfs ' /proc/mounts 2>/dev/null; then
- configfs_ok=1
- echo 'GTS9WIFI: configfs already mounted' > /dev/kmsg 2>/dev/null || true
-elif mount -t configfs configfs /sys/kernel/config 2>/run/configfs-mount.err; then
- configfs_ok=1
- echo 'GTS9WIFI: configfs mounted' > /dev/kmsg 2>/dev/null || true
+ rc=$?
+ err="$(/bin/busybox tr '\n' ' ' < "$errfile" 2>/dev/null)"
+ klog "mount $label failed rc=$rc target=$target error=$err"
+ return "$rc"
+}
+
+klog 'initramfs busybox links ready'
+mkdir -p /dev/pts /proc /sys /run /tmp /config
+
+devtmpfs_ok=0
+proc_ok=0
+sysfs_ok=0
+devpts_ok=0
+run_ok=0
+tmp_ok=0
+
+mount_checked devtmpfs devtmpfs devtmpfs /dev && devtmpfs_ok=1
+mount_checked proc proc proc /proc && proc_ok=1
+mount_checked sysfs sysfs sysfs /sys && sysfs_ok=1
+mount_checked devpts devpts devpts /dev/pts && devpts_ok=1
+mount_checked run_tmpfs tmpfs tmpfs /run && run_ok=1
+mount_checked tmp_tmpfs tmpfs tmpfs /tmp && tmp_ok=1
+
+if [ "$devtmpfs_ok" -eq 1 ] && [ "$proc_ok" -eq 1 ] &&
+   [ "$sysfs_ok" -eq 1 ] && [ "$devpts_ok" -eq 1 ] &&
+   [ "$run_ok" -eq 1 ] && [ "$tmp_ok" -eq 1 ]; then
+ klog 'initramfs pseudo filesystems ready'
 else
- err="$(cat /run/configfs-mount.err 2>/dev/null)"
- echo "GTS9WIFI: configfs mount failed error=$err" > /dev/kmsg 2>/dev/null || true
+ klog "initramfs pseudo filesystems incomplete devtmpfs=$devtmpfs_ok proc=$proc_ok sysfs=$sysfs_ok devpts=$devpts_ok run=$run_ok tmp=$tmp_ok"
 fi
 
-G=/sys/kernel/config/usb_gadget/gts9wifi
+if [ "$proc_ok" -eq 1 ]; then
+ for fs in proc sysfs configfs devtmpfs tmpfs debugfs; do
+  if /bin/busybox grep -qw "$fs" /proc/filesystems 2>/dev/null; then
+   klog "filesystem available name=$fs"
+  else
+   klog "filesystem missing name=$fs"
+  fi
+ done
+ for target in /proc /sys /dev /run /tmp; do
+  line="$(/bin/busybox grep " $target " /proc/mounts 2>/dev/null | /bin/busybox head -n 1)"
+  if [ -n "$line" ]; then
+   klog "mount table target=$target entry=$line"
+  else
+   klog "mount table target=$target entry=<none>"
+  fi
+ done
+fi
+
+echo 'Galaxy Tab S9 mainline diagnostic initramfs (experimental)' > /dev/kmsg
+
+configfs_ok=0
+CONFIGFS_ROOT='/sys/kernel/config'
+
+if [ "$sysfs_ok" -eq 1 ]; then
+ if [ -d /sys/kernel/config ]; then
+  klog 'configfs mountpoint present path=/sys/kernel/config'
+ else
+  : > /run/configfs-mkdir.err
+  if mkdir -p /sys/kernel/config > /run/configfs-mkdir.err 2>&1; then
+   klog 'configfs mountpoint created by userspace path=/sys/kernel/config'
+  else
+   rc=$?
+   err="$(/bin/busybox tr '\n' ' ' < /run/configfs-mkdir.err 2>/dev/null)"
+   klog "configfs mountpoint missing rc=$rc error=$err"
+  fi
+ fi
+else
+ klog 'configfs primary path skipped because sysfs mount failed'
+fi
+
+if [ "$sysfs_ok" -eq 1 ] &&
+   /bin/busybox grep -q ' /sys/kernel/config configfs ' /proc/mounts 2>/dev/null; then
+ configfs_ok=1
+ klog 'configfs already mounted path=/sys/kernel/config'
+elif [ "$sysfs_ok" -eq 1 ]; then
+ : > /run/configfs-mount.err
+ if /bin/busybox mount -t configfs none /sys/kernel/config > /run/configfs-mount.err 2>&1; then
+  configfs_ok=1
+  klog 'configfs mounted path=/sys/kernel/config'
+ else
+  rc=$?
+  err="$(/bin/busybox tr '\n' ' ' < /run/configfs-mount.err 2>/dev/null)"
+  klog "configfs primary mount failed rc=$rc error=$err"
+ fi
+fi
+
+if [ "$configfs_ok" -ne 1 ]; then
+ : > /run/configfs-fallback.err
+ if /bin/busybox mount -t configfs none /config > /run/configfs-fallback.err 2>&1; then
+  configfs_ok=1
+  CONFIGFS_ROOT='/config'
+  klog 'configfs fallback mounted path=/config'
+ else
+  rc=$?
+  err="$(/bin/busybox tr '\n' ' ' < /run/configfs-fallback.err 2>/dev/null)"
+  klog "configfs fallback mount failed rc=$rc error=$err"
+ fi
+fi
+
+if [ "$configfs_ok" -eq 1 ] && [ "$proc_ok" -eq 1 ]; then
+ line="$(/bin/busybox grep " $CONFIGFS_ROOT " /proc/mounts 2>/dev/null | /bin/busybox head -n 1)"
+ [ -n "$line" ] || line='<none>'
+ klog "configfs mount table root=$CONFIGFS_ROOT entry=$line"
+fi
+
+G="$CONFIGFS_ROOT/usb_gadget/gts9wifi"
 gadget_ok=0
 udc=''
 
