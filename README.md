@@ -2,7 +2,7 @@
 
 面向 **Samsung Galaxy Tab S9 Wi-Fi / SM-X710 / gts9wifi** 的独立移植仓库。基于 [S9 Ultra 项目](https://github.com/agcarbajo/ubuntu-galaxy-tab-s9-ultra)的启动经验，使用本机通过 TWRP 提取的分区和设备树建立 S9 板级配置。
 
-当前是**可构建的启动调试基线**：主线内核、独立 S9 DTB、RAM 中运行的 USB 网络诊断环境，以及 Android v4 启动镜像生成工具。**首次实机日志确认主线内核执行、8 个 CPU 启动及 initramfs 解包；约 31 毫秒后固件报告 NoC 致命错误，完整启动尚未通过。第六次增加五个 setup_arch 早期标记，仍未取得标记、主线输出或 USB 枚举；过滤、映射、写入及复位保留环节尚需区分。参照 Ultra 固定固件端 DTB，第八次恢复首次 DTB，仍没有主线日志或 USB 枚举，原分区已恢复。第九次换回首次真实内核仍无主线输出，原分区已恢复。第十次仅移除 initcall_debug，已刷写回读并重启，未观察到 USB；等待手动返回 TWRP 提取日志并恢复，当前仍是第十次测试镜像。屏幕和触控尚未实现，不能作为可用的 Ubuntu 桌面系统。**
+当前是**可构建的启动调试基线**：主线内核、独立 S9 DTB、RAM 中运行的 USB 网络诊断环境，以及 Android v4 启动镜像生成工具。**首次实机日志确认主线内核执行、8 个 CPU 启动及 initramfs 解包；约 31 毫秒后固件报告 NoC 致命错误，完整启动尚未通过。第六次增加五个 setup_arch 早期标记，仍未取得标记、主线输出或 USB 枚举；过滤、映射、写入及复位保留环节尚需区分。第八至第十次参照 Ultra 固定初始 DTB、回退首次真实内核、移除 initcall_debug，均未恢复主线输出或 USB 枚举，问题尚未修复。全部日志已归档，原四个启动分区已恢复并回读匹配，设备留在 TWRP。屏幕和触控尚未实现，不能作为可用的 Ubuntu 桌面系统。**
 
 实机记录：[首次](docs/boot-test-20260918.md)、[第二次](docs/boot-test-20260918-second.md)、[第三次](docs/boot-test-20260918-third.md)、[第四次](docs/boot-test-20260918-fourth.md)、[第五次](docs/boot-test-20260918-fifth.md)、[第六次](docs/boot-test-20260918-sixth.md)、[第七次](docs/boot-test-20260918-seventh.md)、[第八次](docs/boot-test-20260918-eighth.md)、[第九次](docs/boot-test-20260918-ninth.md)、[第十次](docs/boot-test-20260918-tenth.md)。
 
@@ -12,10 +12,10 @@
 |---|---|
 | Linux `v7.2-rc3`、Clang/LLVM ARM64 构建 | 已完成本机编译 |
 | S9 DTS：board `04`，覆盖实机 revision `6` | 已生成 DTB 并校验 |
-| Samsung 保留内存与持久内核日志 | 首次已回收主线日志；第八版恢复首次 DTB 仍无早期标记，第九次首次内核对照待回收日志 |
+| Samsung 保留内存与持久内核日志 | 首次已回收主线日志；第十版移除 initcall_debug 仍无早期标记，入口和复位保留未确认 |
 | eUSB2、NXP PTN3222、USB2 peripheral / NCM | 驱动已编入，枚举待实测 |
 | microSD / ext4 | 驱动已编入；当前 initramfs 不自动挂载 SD |
-| Android v4 的四个启动镜像 | 前九次写入及回读通过且原分区均已恢复，第十次测试中 |
+| Android v4 的四个启动镜像 | 十次写入及回读通过；启动未通过，原四分区均已恢复 |
 | ANA38407 AMSA10FA01、STM FTS1BA90A、Wacom | 保留实机资料；未启用驱动 |
 | WLAN、音频、充电、相机、指纹、GPU | 后续阶段，当前未启用 |
 
@@ -86,4 +86,4 @@ ABL 交接主线内核及 TWRP 回收持久日志已验证；下一步利用 `in
 
 本次检查结果见 [验证记录](docs/validation.md)。来源、补丁调整和许可证见 [kernel/PROVENANCE.md](kernel/PROVENANCE.md)与 [LICENSE](LICENSE)。Linux 源码和工具缓存不提交到此仓库；默认分支为 `main`。
 
-TWRP 四分区恢复包和独立脚本见 [恢复说明](docs/twrp-restore.md)。第七次测试将早期日志查找改为精确保留区 reg 匹配，记录 compatible 结果；进度见 [第七次测试](docs/boot-test-20260918-seventh.md)。
+TWRP 四分区恢复包和独立脚本见 [恢复说明](docs/twrp-restore.md)。最新三次修复与对照结果见 [第十次测试](docs/boot-test-20260918-tenth.md)。
