@@ -21,6 +21,26 @@ c17418be08365c03a5ce3a220af734b14ec2e6b03c0cbc1ed9721be6f21d3ef3  dtbo.img
 
 TWRP 预检通过：身份、解锁状态、AVB flags 2、当前原分区及恢复备份哈希匹配。四个镜像已写入并逐个回读通过，recovery / vbmeta 未改变，随后请求正常重启。
 
-Windows 未观察到 Linux / Samsung USB 设备、新网卡或 ADB。当前等待返回 TWRP，采集持久日志、核对 console 标记，再恢复原启动分区；当前四个启动分区仍为第五版实验镜像。
+Windows 未观察到 Linux / Samsung USB 设备、新网卡或 ADB。用户确认屏幕仍停在三星标志及非官方软件警告。
+
+## 日志与结论
+
+返回 TWRP 后已保存 `/proc/last_kmsg`、recovery dmesg、recovery 日志、pstore 列表及分区哈希。持久日志为 2097136 字节，SHA256 为 `3226e221d90f4c60e701925b057e51dcaff44524a48e55e3ea8f6f235909eba3`；pstore 为空。
+
+本次 ABL cmdline 包含 `rdinit=/init ... initcall_debug`，未出现第二次的 `Could not add` 或 `failed to reserve` 错误，并记录：
+
+```text
+{ 13397796 }[ ABL ] Update Device Tree total time: 24 ms
+Shutting Down UEFI Boot Services: 13439 ms
+{ 13555755 }[ XBL ] Exit EBS        [13561] UEFI End
+```
+
+**新增 PoC 缓存清理后仍未取得 console 到达标记，完整启动未通过。** 日志没有 `GTS9WIFI: console_initcall reached`、`gts9wifi-sec-log`、主线内核版本或 initcall 跟踪，也没有首次的 `TZBSP_ERR_FATAL_NOC_ERROR` 标记。无法确认本次进入主线及停止位置。
+
+不能由标记缺失认定缓存清理无效或排除缓存问题：日志映射、标记写入及缓存清理本身是否执行仍未确认。下一次应将独立标记前移到更早的架构启动阶段，并区分到达、映射及写入步骤；本次未自动开始第六次刷写。
+
+## 恢复状态
+
+日志保存后，原 boot、init_boot、vendor_boot、dtbo 已恢复，四个分区逐个回读哈希匹配采集备份；recovery / vbmeta 保持不变。`restore/report.json` 最终阶段为 `restored`，设备留在 TWRP，未请求重启 Android。
 
 完整本地归档位于 `artifacts/boot-tests/fifth-sm-x710/`；实际镜像保存在 `tested-bundle/`，设备日志及二进制被 Git 忽略。
