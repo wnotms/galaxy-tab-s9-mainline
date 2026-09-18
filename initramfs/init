@@ -9,9 +9,20 @@ echo 'GTS9WIFI: initramfs devtmpfs mounted' > /dev/kmsg 2>/dev/null || true
 mkdir -p /dev/pts /proc /sys /run /tmp
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
-# /sys/kernel/config must be created after sysfs is mounted; creating it
-# beforehand is hidden by the sysfs mount.
-mkdir -p /sys/kernel/config
+# configfs_init() normally creates /sys/kernel/config as a sysfs mountpoint.
+# Check it after mounting sysfs; mkdir is only a fallback and its error is
+# useful diagnostic evidence if the kernel mountpoint is unexpectedly absent.
+if [ -d /sys/kernel/config ]; then
+ echo 'GTS9WIFI: configfs mountpoint present' > /dev/kmsg 2>/dev/null || true
+else
+ : > /run/configfs-mkdir.err
+ if mkdir -p /sys/kernel/config 2>/run/configfs-mkdir.err; then
+  echo 'GTS9WIFI: configfs mountpoint created by userspace' > /dev/kmsg 2>/dev/null || true
+ else
+  err="$(cat /run/configfs-mkdir.err 2>/dev/null)"
+  echo "GTS9WIFI: configfs mountpoint missing error=$err" > /dev/kmsg 2>/dev/null || true
+ fi
+fi
 mount -t devpts devpts /dev/pts
 mount -t tmpfs tmpfs /run
 mount -t tmpfs tmpfs /tmp
