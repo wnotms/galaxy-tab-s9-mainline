@@ -24,6 +24,7 @@ entry("bin/sh", b"busybox", 0o120777, 9)
 entry("init", (root / "initramfs/init").read_bytes(), 0o100755, 10)
 entry("dev/console", mode=0o20600, inode=11, rdevmajor=5, rdevminor=1)
 entry("dev/null", mode=0o20666, inode=12, rdevmajor=1, rdevminor=3)
+entry("dev/kmsg", mode=0o20600, inode=13, rdevmajor=1, rdevminor=11)
 entry("TRAILER!!!", mode=0, inode=0)
 archive.extend(b"\0" * (-len(archive) % 512))
 out = root / "artifacts/initramfs/initramfs.cpio.gz"
