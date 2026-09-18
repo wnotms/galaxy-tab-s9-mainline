@@ -28,7 +28,8 @@ SHELL_FILES = (
 REQUIRED_INIT_MARKERS = (
     "GTS9WIFI: initramfs init entered",
     "GTS9WIFI: configfs mountpoint present",
-    "GTS9WIFI: configfs mount failed",
+    "GTS9WIFI: configfs primary mount failed",
+    "GTS9WIFI: configfs fallback mount failed",
     "GTS9WIFI: USB gadget setup failed",
     "GTS9WIFI: USB gadget skipped because configfs unavailable",
     "GTS9WIFI: UDC bind success",
@@ -75,15 +76,31 @@ def main() -> int:
         if marker not in init_text:
             raise RuntimeError("missing required initramfs diagnostic marker: " + marker)
 
-    sysfs_mount = init_text.find("mount -t sysfs sysfs /sys")
+    sysfs_mount = init_text.find("mount_checked sysfs sysfs sysfs /sys")
     configfs_probe = init_text.find("GTS9WIFI: configfs mountpoint present")
-    configfs_mount = init_text.find("mount -t configfs configfs /sys/kernel/config")
-    if min(sysfs_mount, configfs_probe, configfs_mount) < 0:
-        raise RuntimeError("missing sysfs/configfs setup sequence")
-    if not (sysfs_mount < configfs_probe < configfs_mount):
+    configfs_primary = init_text.find(
+        "/bin/busybox mount -t configfs none /sys/kernel/config"
+    )
+    configfs_fallback = init_text.find(
+        "/bin/busybox mount -t configfs none /config"
+    )
+    if min(sysfs_mount, configfs_probe, configfs_primary, configfs_fallback) < 0:
+        raise RuntimeError("missing sysfs/configfs diagnostic sequence")
+    if not (sysfs_mount < configfs_probe < configfs_primary < configfs_fallback):
         raise RuntimeError(
-            "configfs diagnostics must run after sysfs mount and before configfs mount"
+            "configfs diagnostics must follow sysfs and primary mount must precede fallback"
         )
+
+    for required in (
+        "mount_checked devtmpfs devtmpfs devtmpfs /dev",
+        "mount_checked proc proc proc /proc",
+        "mount_checked sysfs sysfs sysfs /sys",
+        "GTS9WIFI: filesystem available name=",
+        "GTS9WIFI: mount table target=",
+        "CONFIGFS_ROOT='/config'",
+    ):
+        if required not in init_text:
+            raise RuntimeError("missing pseudo-filesystem diagnostic: " + required)
 
     if "/bin/busybox sleep 1" not in init_text:
         raise RuntimeError("UDC/host wait loops must use explicit BusyBox sleep")
