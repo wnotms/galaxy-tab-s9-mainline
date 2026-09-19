@@ -1,0 +1,4 @@
+# Diagnostic single-variable control for the SM-X710 virtual switch.
+# Keep the S9 Ultra base config and X710 bring-up overrides unchanged, but do
+# not mark the kernel text mappings BTI guarded during map_kernel().
+# CONFIG_ARM64_BTI_KERNEL is not set

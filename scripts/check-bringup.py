@@ -124,6 +124,7 @@ def main() -> int:
     for token in (
         'GTS9_CONFIG_PROFILE',
         's9u-control',
+        's9u-nobti',
         'merge_config.sh',
         's9u-mainline-aarch64.reference.config',
     ):
@@ -131,9 +132,16 @@ def main() -> int:
             raise RuntimeError("missing S9U control build support: " + token)
 
     entry_test_text = (ROOT / "scripts/twrp-entry-marker-test.py").read_text()
-    if "--config-profile" not in entry_test_text or "s9u-control" not in entry_test_text:
+    if (
+        "--config-profile" not in entry_test_text
+        or "s9u-control" not in entry_test_text
+        or "s9u-nobti" not in entry_test_text
+    ):
         raise RuntimeError("entry-marker harness lacks s9u-control profile support")
-    print("PASS: pinned S9 Ultra config control profile")
+    nobti = (ROOT / "kernel/config/s9u-nobti.fragment").read_text()
+    if "# CONFIG_ARM64_BTI_KERNEL is not set" not in nobti:
+        raise RuntimeError("S9U no-BTI override is missing ARM64_BTI_KERNEL=n")
+    print("PASS: pinned S9 Ultra config control profiles")
 
     bundle_builder_text = (ROOT / "scripts/build-boot-bundle.py").read_text()
     for token in (

@@ -12,12 +12,13 @@ OUT="$ROOT/work/kernel-build"
 PROFILE="${GTS9_CONFIG_PROFILE:-bringup}"
 BRINGUP_CONFIG="$ROOT/kernel/config/gts9wifi-bringup.config"
 S9U_REFERENCE_CONFIG="$ROOT/kernel/config/s9u-mainline-aarch64.reference.config"
+S9U_NOBTI_CONFIG="$ROOT/kernel/config/s9u-nobti.fragment"
 mkdir -p work artifacts/kernel
 
 case "$PROFILE" in
- bringup|s9u-control) ;;
+ bringup|s9u-control|s9u-nobti) ;;
  *)
-  echo "Unknown GTS9_CONFIG_PROFILE: $PROFILE (expected bringup or s9u-control)" >&2
+  echo "Unknown GTS9_CONFIG_PROFILE: $PROFILE (expected bringup, s9u-control or s9u-nobti)" >&2
   exit 1
   ;;
 esac
@@ -53,11 +54,16 @@ case "$PROFILE" in
  bringup)
   make -C "$SRC" O="$OUT" ARCH=arm64 LLVM=1 KCONFIG_ALLCONFIG="$BRINGUP_CONFIG" allnoconfig
   ;;
- s9u-control)
+ s9u-control|s9u-nobti)
   [[ -f "$S9U_REFERENCE_CONFIG" ]] || { echo "Missing S9 Ultra reference config" >&2; exit 1; }
   rm -f "$OUT/.config"
+  merge_inputs=("$S9U_REFERENCE_CONFIG" "$BRINGUP_CONFIG")
+  if [[ "$PROFILE" == "s9u-nobti" ]]; then
+    [[ -f "$S9U_NOBTI_CONFIG" ]] || { echo "Missing S9 Ultra no-BTI override" >&2; exit 1; }
+    merge_inputs+=("$S9U_NOBTI_CONFIG")
+  fi
   KCONFIG_CONFIG="$OUT/.config" bash "$SRC/scripts/kconfig/merge_config.sh" -m -O "$OUT" \
-    "$S9U_REFERENCE_CONFIG" "$BRINGUP_CONFIG"
+    "${merge_inputs[@]}"
   make -C "$SRC" O="$OUT" ARCH=arm64 LLVM=1 olddefconfig
   ;;
 esac
