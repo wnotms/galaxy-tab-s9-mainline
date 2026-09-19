@@ -16,7 +16,7 @@ G9V0002 path, and add an equivalent helper in .init.text for G9E1314..G9E1317.
 diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
 --- a/arch/arm64/kernel/head.S
 +++ b/arch/arm64/kernel/head.S
-@@ -221,6 +221,29 @@
+@@ -221,6 +221,32 @@
  	set_this_cpu_offset \tmp1
  	.endm
  
