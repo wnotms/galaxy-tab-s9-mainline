@@ -184,48 +184,38 @@ def main() -> int:
             raise RuntimeError("missing fixed-geometry gzip control support: " + token)
     print("PASS: fixed-geometry gzip control support")
 
-    mmu_patch = ROOT / "kernel/patches/record-arm64-mmu-on-markers.patch"
-    mmu_patch_text = mmu_patch.read_text()
+    boot_marker_patch = ROOT / "kernel/patches/record-arm64-boot-markers.patch"
+    boot_marker_text = boot_marker_patch.read_text()
     for token in (
+        "G9E1301",
         "G9E1306",
-        "G9E1307",
-        "gts9wifi_map_sec_log",
-        "gts9wifi_entry_marker_append_mmu_on",
         "G9E1317",
-    ):
-        if token not in mmu_patch_text:
-            raise RuntimeError("missing MMU-on persistent marker support: " + token)
-    if "record-arm64-mmu-on-markers.patch" not in (
-        ROOT / "kernel/patches/series"
-    ).read_text().splitlines():
-        raise RuntimeError("MMU-on marker patch is not enabled in series")
-    print("PASS: MMU-on persistent entry markers")
-
-    switch_patch = ROOT / "kernel/patches/record-arm64-virtual-switch-probe.patch"
-    switch_text = switch_patch.read_text()
-    for token in (
         "G9V0001",
         "G9V0002",
         "G9V0003",
-        "gts9wifi_entry_marker_inline",
+        "gts9wifi_map_sec_log",
+        "gts9wifi_entry_marker_append_mmu_on",
+        "gts9wifi_entry_marker_append_kernel_va",
         "ldr\tw9, [x8]",
     ):
-        if token not in switch_text:
-            raise RuntimeError("missing virtual-switch probe support: " + token)
-    if "record-arm64-virtual-switch-probe.patch" not in (
+        if token not in boot_marker_text:
+            raise RuntimeError("missing consolidated ARM64 boot-marker support: " + token)
+    active_series = (
         ROOT / "kernel/patches/series"
-    ).read_text().splitlines():
-        raise RuntimeError("virtual-switch probe patch is not enabled in series")
-    if "gts9wifi_entry_marker_append_kernel_va" not in mmu_patch_text:
-        raise RuntimeError("MMU marker patch lacks kernel-VA post-switch helper")
-    if mmu_patch_text.count("bl\tgts9wifi_entry_marker_append_kernel_va") != 4:
+    ).read_text().splitlines()
+    if "record-arm64-boot-markers.patch" not in active_series:
+        raise RuntimeError("consolidated ARM64 boot-marker patch is not enabled")
+    for obsolete in (
+        "record-arm64-entry-markers.patch",
+        "record-arm64-mmu-on-markers.patch",
+        "record-arm64-virtual-switch-probe.patch",
+    ):
+        if obsolete in active_series:
+            raise RuntimeError("obsolete overlapping ARM64 marker patch still enabled: " + obsolete)
+    if boot_marker_text.count("bl\tgts9wifi_entry_marker_append_kernel_va") != 4:
         raise RuntimeError("post-switch G9E1314..G9E1317 must all use the kernel-VA helper")
-    if "fix-arm64-kernel-va-marker-helper.patch" in (
-        ROOT / "kernel/patches/series"
-    ).read_text().splitlines():
-        raise RuntimeError("obsolete follow-up kernel-VA helper patch must not be enabled")
-    print("PASS: primary virtual-switch probe markers")
-    print("PASS: post-switch marker helper integrated into MMU marker patch")
+    print("PASS: consolidated ARM64 early/MMU/virtual-switch markers")
+    print("PASS: post-switch marker helper stays in kernel mapping")
 
     init_text = (ROOT / "initramfs/init").read_text()
     for marker in REQUIRED_INIT_MARKERS:

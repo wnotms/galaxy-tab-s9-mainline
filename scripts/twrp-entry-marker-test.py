@@ -28,9 +28,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
-PATCH = ROOT / "kernel/patches/record-arm64-entry-markers.patch"
-MMU_PATCH = ROOT / "kernel/patches/record-arm64-mmu-on-markers.patch"
-SWITCH_PATCH = ROOT / "kernel/patches/record-arm64-virtual-switch-probe.patch"
+BOOT_MARKER_PATCH = ROOT / "kernel/patches/record-arm64-boot-markers.patch"
 SERIES = ROOT / "kernel/patches/series"
 SNAPSHOT = ROOT / "artifacts/device-snapshot-sm-x710-20260918"
 BUNDLE = ROOT / "artifacts/boot-bundle"
@@ -262,12 +260,8 @@ def patch_id():
     return h.hexdigest()
 
 def verify_repo():
-    if not PATCH.is_file():
-        raise RuntimeError("entry-marker patch is missing")
-    if not MMU_PATCH.is_file():
-        raise RuntimeError("MMU-on entry-marker patch is missing")
-    if not SWITCH_PATCH.is_file():
-        raise RuntimeError("virtual-switch probe patch is missing")
+    if not BOOT_MARKER_PATCH.is_file():
+        raise RuntimeError("consolidated ARM64 boot-marker patch is missing")
     late_patch = ROOT / "kernel/patches/record-late-boot-checkpoints.patch"
     exec_patch = ROOT / "kernel/patches/record-rdinit-exec-result.patch"
     if not late_patch.is_file():
@@ -276,21 +270,20 @@ def verify_repo():
         raise RuntimeError("rdinit exec-result patch is missing")
     series = SERIES.read_text().splitlines()
     for required in (
-        PATCH.name,
-        MMU_PATCH.name,
-        SWITCH_PATCH.name,
+        BOOT_MARKER_PATCH.name,
         late_patch.name,
         exec_patch.name,
     ):
         if required not in series:
             raise RuntimeError(required + " is not enabled in series")
-    text = (
-        PATCH.read_text()
-        + "\n"
-        + MMU_PATCH.read_text()
-        + "\n"
-        + SWITCH_PATCH.read_text()
-    )
+    for obsolete in (
+        "record-arm64-entry-markers.patch",
+        "record-arm64-mmu-on-markers.patch",
+        "record-arm64-virtual-switch-probe.patch",
+    ):
+        if obsolete in series:
+            raise RuntimeError(obsolete + " must not be enabled alongside the consolidated marker patch")
+    text = BOOT_MARKER_PATCH.read_text()
     for marker in MARKERS:
         if marker not in text:
             raise RuntimeError("missing marker in patch: " + marker)
