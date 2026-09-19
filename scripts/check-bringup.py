@@ -217,6 +217,22 @@ def main() -> int:
     print("PASS: consolidated ARM64 early/MMU/virtual-switch markers")
     print("PASS: post-switch marker helper stays in kernel mapping")
 
+    dyndbg_patch = ROOT / "kernel/patches/record-dynamic-debug-init-checkpoints.patch"
+    dyndbg_text = dyndbg_patch.read_text()
+    for token in (
+        "dynamic_debug_init enter",
+        "dynamic_debug_init walk_begin",
+        "dynamic_debug_init walk_done",
+        "dynamic_debug_init final_add_done",
+        "dynamic_debug_init before_parse_args",
+        "dynamic_debug_init after_parse_args",
+    ):
+        if token not in dyndbg_text:
+            raise RuntimeError("missing dynamic-debug init checkpoint: " + token)
+    if dyndbg_patch.name not in active_series:
+        raise RuntimeError("dynamic-debug init checkpoint patch is not enabled")
+    print("PASS: dynamic-debug early-initcall checkpoints")
+
     init_text = (ROOT / "initramfs/init").read_text()
     for marker in REQUIRED_INIT_MARKERS:
         if marker not in init_text:
