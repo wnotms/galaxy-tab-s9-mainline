@@ -107,7 +107,7 @@ diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
  	bl	__enable_mmu
  
  	adrp	x1, early_init_stack
-@@ -481,7 +522,11 @@
+@@ -481,6 +522,10 @@
  	mov	x0, x20				// pass the full boot status
  	mov	x1, x21				// pass the FDT
  	bl	__pi_early_map_kernel		// Map and relocate the kernel
