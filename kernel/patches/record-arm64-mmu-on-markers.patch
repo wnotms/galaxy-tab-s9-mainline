@@ -205,7 +205,7 @@ diff --git a/arch/arm64/kernel/pi/map_kernel.c b/arch/arm64/kernel/pi/map_kernel
  
  	if (IS_ENABLED(CONFIG_ARM64_64K_PAGES) && !cpu_has_lva()) {
  		va_bits = VA_BITS_MIN;
-@@ -286,6 +346,12 @@
+@@ -286,5 +346,11 @@
  		remap_idmap_for_lpa2();
  
  	va_base = KIMAGE_VADDR + kaslr_offset;
