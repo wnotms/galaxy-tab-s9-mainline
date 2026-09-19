@@ -125,6 +125,7 @@ def main() -> int:
         'GTS9_CONFIG_PROFILE',
         's9u-control',
         's9u-nobti',
+        's9u-va48',
         'merge_config.sh',
         's9u-mainline-aarch64.reference.config',
         'GTS9_CCACHE',
@@ -146,11 +147,21 @@ def main() -> int:
         "--config-profile" not in entry_test_text
         or "s9u-control" not in entry_test_text
         or "s9u-nobti" not in entry_test_text
+        or "s9u-va48" not in entry_test_text
     ):
         raise RuntimeError("entry-marker harness lacks s9u-control profile support")
     nobti = (ROOT / "kernel/config/s9u-nobti.fragment").read_text()
     if "# CONFIG_ARM64_BTI_KERNEL is not set" not in nobti:
         raise RuntimeError("S9U no-BTI override is missing ARM64_BTI_KERNEL=n")
+    va48 = (ROOT / "kernel/config/s9u-va48.fragment").read_text()
+    for token in (
+        "CONFIG_ARM64_VA_BITS_48=y",
+        "# CONFIG_ARM64_VA_BITS_52 is not set",
+        "CONFIG_ARM64_PA_BITS_48=y",
+        "# CONFIG_ARM64_PA_BITS_52 is not set",
+    ):
+        if token not in va48:
+            raise RuntimeError("S9U VA48 override is missing: " + token)
     print("PASS: pinned S9 Ultra config control profiles")
 
     bundle_builder_text = (ROOT / "scripts/build-boot-bundle.py").read_text()
