@@ -29,7 +29,8 @@ virtual mapping can make the instrumentation itself fault.
 ## Change
 
 Keep the old helper for the pre-switch markers, but route the four
-post-switch markers through a new helper in `.init.text`:
+post-switch markers through a helper integrated directly into the existing
+MMU-marker patch after `__INIT` (therefore in the kernel-mapped init text):
 
 ```text
 G9E1314
@@ -43,7 +44,7 @@ using `s9u-va48`.
 
 ## Build and test
 
-Because the patch series changed, a clean patched source tree is required:
+Because the contents of the active MMU-marker patch changed, a clean patched source tree is required:
 
 ```bash
 python3 scripts/twrp-entry-marker-test.py restore

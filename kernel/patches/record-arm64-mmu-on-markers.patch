@@ -12,7 +12,7 @@ CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG.
 diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
 --- a/arch/arm64/kernel/head.S
 +++ b/arch/arm64/kernel/head.S
-@@ -153,6 +153,27 @@
+@@ -153,6 +153,50 @@
  	dsb	sy
  1:	ret
  SYM_CODE_END(gts9wifi_entry_marker_append)
@@ -40,13 +40,36 @@ diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
  #endif
  
  	__INIT
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++/*
++ * Post-switch marker helper. This lives after __INIT, so it is part of
++ * the normal kernel init mapping rather than .idmap.text.
++ */
++SYM_CODE_START_LOCAL(gts9wifi_entry_marker_append_kernel_va)
++	mov_q	x9, 0x0000000880200000
++	ldr	w10, [x9, #8]
++	cmp	w10, #248
++	b.hi	1f
++	add	x11, x9, #16
++	add	x11, x11, w10, uxtw
++	str	x12, [x11]
++	add	w10, w10, #8
++	str	w10, [x9, #8]
++	str	w10, [x9, #12]
++	dc	cvac, x11
++	dc	cvac, x9
++	dsb	sy
++1:	ret
++SYM_CODE_END(gts9wifi_entry_marker_append_kernel_va)
++#endif
++
 @@ -192,6 +213,10 @@
   *   x0 = __pa(KERNEL_START)
   */
  SYM_FUNC_START_LOCAL(__primary_switched)
 +#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
 +	mov_q	x12, 0x0a34313331453947	// "G9E1314\n"
-+	bl	gts9wifi_entry_marker_append_mmu_on
++	bl	gts9wifi_entry_marker_append_kernel_va
 +#endif
  	adr_l	x4, init_task
  	init_cpu_task x4, x5, x6
@@ -57,18 +80,18 @@ diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
  #endif
 +#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
 +	mov_q	x12, 0x0a35313331453947	// "G9E1315\n"
-+	bl	gts9wifi_entry_marker_append_mmu_on
++	bl	gts9wifi_entry_marker_append_kernel_va
 +#endif
  	mov	x0, x20
  	bl	finalise_el2			// Prefer VHE if possible
 +#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
 +	mov_q	x12, 0x0a36313331453947	// "G9E1316\n"
-+	bl	gts9wifi_entry_marker_append_mmu_on
++	bl	gts9wifi_entry_marker_append_kernel_va
 +#endif
  	ldp	x29, x30, [sp], #16
 +#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
 +	mov_q	x12, 0x0a37313331453947	// "G9E1317\n"
-+	bl	gts9wifi_entry_marker_append_mmu_on
++	bl	gts9wifi_entry_marker_append_kernel_va
 +#endif
  	bl	start_kernel
  	ASM_BUG()
@@ -84,7 +107,7 @@ diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
  	bl	__enable_mmu
  
  	adrp	x1, early_init_stack
-@@ -481,6 +522,10 @@
+@@ -481,7 +522,11 @@
  	mov	x0, x20				// pass the full boot status
  	mov	x1, x21				// pass the FDT
  	bl	__pi_early_map_kernel		// Map and relocate the kernel
@@ -182,7 +205,7 @@ diff --git a/arch/arm64/kernel/pi/map_kernel.c b/arch/arm64/kernel/pi/map_kernel
  
  	if (IS_ENABLED(CONFIG_ARM64_64K_PAGES) && !cpu_has_lva()) {
  		va_bits = VA_BITS_MIN;
-@@ -286,5 +346,11 @@
+@@ -286,6 +346,12 @@
  		remap_idmap_for_lpa2();
  
  	va_base = KIMAGE_VADDR + kaslr_offset;
