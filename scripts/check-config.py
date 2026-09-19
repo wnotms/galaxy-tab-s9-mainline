@@ -70,9 +70,6 @@ if args.profile == "s9u-va48" and not enabled("RELR"):
 if args.profile == "s9u-va48-norelr" and enabled("RELR"):
     raise SystemExit("s9u-va48-norelr must keep CONFIG_RELR disabled")
 
-if args.profile == "s9u-va48-norelr" and enabled("RELR"):
-    raise SystemExit("s9u-va48-norelr must keep CONFIG_RELR disabled")
-
 missing = [name for name in required if f"CONFIG_{name}=y" not in config]
 if missing:
     raise SystemExit("Required built-in options missing: " + ", ".join(missing))

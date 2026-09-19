@@ -14,7 +14,6 @@ BRINGUP_CONFIG="$ROOT/kernel/config/gts9wifi-bringup.config"
 S9U_REFERENCE_CONFIG="$ROOT/kernel/config/s9u-mainline-aarch64.reference.config"
 S9U_NOBTI_CONFIG="$ROOT/kernel/config/s9u-nobti.fragment"
 S9U_VA48_CONFIG="$ROOT/kernel/config/s9u-va48.fragment"
-S9U_NORELR_CONFIG="$ROOT/kernel/config/s9u-norelr.fragment"
 S9U_VA48_NORELR_CONFIG="$ROOT/kernel/config/s9u-va48-norelr.fragment"
 
 # Optional compiler cache.  Auto-enable when ccache is installed, while keeping

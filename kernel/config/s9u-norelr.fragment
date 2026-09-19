@@ -1,7 +1,0 @@
-# Diagnostic relocation-format control for SM-X710.
-#
-# Keep the s9u-va48/no-BTI geometry, but disable RELR packing so all relative
-# relocations remain in the RELA form consumed unconditionally by
-# arm64 relocate_kernel().  This tests whether the observed low __dyndbg
-# modname pointer is specific to the RELR/in-place-addend path.
-# CONFIG_RELR is not set
