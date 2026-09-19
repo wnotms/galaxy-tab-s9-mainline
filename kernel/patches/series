@@ -9,5 +9,6 @@ find-sec-log-by-validated-flat-dt-range.patch
 record-arm64-entry-markers.patch
 record-arm64-mmu-on-markers.patch
 record-arm64-virtual-switch-probe.patch
+fix-arm64-kernel-va-marker-helper.patch
 record-late-boot-checkpoints.patch
 record-rdinit-exec-result.patch

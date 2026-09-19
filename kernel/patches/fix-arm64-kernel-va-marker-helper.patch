@@ -1,0 +1,84 @@
+Subject: [PATCH] arm64: keep post-switch sec-log helper in kernel mapping
+
+The primary virtual-switch probe proves that execution reaches
+__primary_switched through the high virtual kernel mapping (G9V0003), but the
+immediately following helper-based G9E1314 marker never appears.
+
+gts9wifi_entry_marker_append_mmu_on lives in .idmap.text.  arm64's linker
+script deliberately places .idmap.text in .rodata.text as code that is never
+executed through the kernel mapping.  Calling that helper after the final
+branch to __primary_switched therefore makes the diagnostic instrumentation
+itself an invalid post-switch control-flow target.
+
+Keep the existing .idmap.text helper for the pre-switch G9E1313/G9V0001/
+G9V0002 path, and add an equivalent helper in .init.text for G9E1314..G9E1317.
+
+diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
+--- a/arch/arm64/kernel/head.S
++++ b/arch/arm64/kernel/head.S
+@@ -221,6 +221,29 @@
+ 	set_this_cpu_offset \tmp1
+ 	.endm
+ 
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++/*
++ * Post-switch marker helper.  Unlike gts9wifi_entry_marker_append_mmu_on,
++ * this symbol is in .init.text and is therefore executable through the
++ * kernel virtual mapping after __primary_switch branches to
++ * __primary_switched.  TTBR0 still carries the diagnostic sec-log identity
++ * mapping at this point, as proven by the inline G9V0003 write.
++ */
++SYM_CODE_START_LOCAL(gts9wifi_entry_marker_append_kernel_va)
++	mov_q	x9, 0x0000000880200000
++	ldr	w10, [x9, #8]
++	cmp	w10, #248
++	b.hi	1f
++	add	x11, x9, #16
++	add	x11, x11, w10, uxtw
++	str	x12, [x11]
++	add	w10, w10, #8
++	str	w10, [x9, #8]
++	str	w10, [x9, #12]
++	dc	cvac, x11
++	dc	cvac, x9
++	dsb	sy
++1:	ret
++SYM_CODE_END(gts9wifi_entry_marker_append_kernel_va)
++#endif
++
+ /*
+  * The following fragment of code is executed with the MMU enabled.
+  *
+@@ -233,7 +256,7 @@
+ #endif
+ #ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
+ 	mov_q	x12, 0x0a34313331453947	// "G9E1314\n"
+-	bl	gts9wifi_entry_marker_append_mmu_on
++	bl	gts9wifi_entry_marker_append_kernel_va
+ #endif
+ 	adr_l	x4, init_task
+ 	init_cpu_task x4, x5, x6
+@@ -263,7 +286,7 @@
+ #endif
+ #ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
+ 	mov_q	x12, 0x0a35313331453947	// "G9E1315\n"
+-	bl	gts9wifi_entry_marker_append_mmu_on
++	bl	gts9wifi_entry_marker_append_kernel_va
+ #endif
+ 	mov	x0, x20
+ 	bl	finalise_el2			// Prefer VHE if possible
+@@ -271,12 +294,12 @@
+ #endif
+ #ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
+ 	mov_q	x12, 0x0a36313331453947	// "G9E1316\n"
+-	bl	gts9wifi_entry_marker_append_mmu_on
++	bl	gts9wifi_entry_marker_append_kernel_va
+ #endif
+ 	ldp	x29, x30, [sp], #16
+ #ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
+ 	mov_q	x12, 0x0a37313331453947	// "G9E1317\n"
+-	bl	gts9wifi_entry_marker_append_mmu_on
++	bl	gts9wifi_entry_marker_append_kernel_va
+ #endif
+ 	bl	start_kernel
+ 	ASM_BUG()

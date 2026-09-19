@@ -216,7 +216,24 @@ def main() -> int:
         ROOT / "kernel/patches/series"
     ).read_text().splitlines():
         raise RuntimeError("virtual-switch probe patch is not enabled in series")
+    post_switch_patch = ROOT / "kernel/patches/fix-arm64-kernel-va-marker-helper.patch"
+    post_switch_text = post_switch_patch.read_text()
+    for token in (
+        "gts9wifi_entry_marker_append_kernel_va",
+        ".init.text",
+        "G9E1314",
+        "G9E1317",
+    ):
+        if token not in post_switch_text:
+            raise RuntimeError("missing kernel-VA marker-helper fix: " + token)
+    if "fix-arm64-kernel-va-marker-helper.patch" not in (
+        ROOT / "kernel/patches/series"
+    ).read_text().splitlines():
+        raise RuntimeError("kernel-VA marker-helper fix is not enabled in series")
+    if post_switch_text.count("bl\tgts9wifi_entry_marker_append_kernel_va") != 4:
+        raise RuntimeError("post-switch G9E1314..G9E1317 must all use the kernel-VA helper")
     print("PASS: primary virtual-switch probe markers")
+    print("PASS: post-switch marker helper stays in kernel mapping")
 
     init_text = (ROOT / "initramfs/init").read_text()
     for marker in REQUIRED_INIT_MARKERS:
