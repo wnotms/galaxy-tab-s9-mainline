@@ -7,5 +7,6 @@ clean-sec-log-cache-before-reset.patch
 record-sec-log-setup-arch-checkpoints.patch
 find-sec-log-by-validated-flat-dt-range.patch
 record-arm64-entry-markers.patch
+record-arm64-mmu-on-markers.patch
 record-late-boot-checkpoints.patch
 record-rdinit-exec-result.patch

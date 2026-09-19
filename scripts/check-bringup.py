@@ -145,6 +145,23 @@ def main() -> int:
             raise RuntimeError("missing fixed-geometry gzip control support: " + token)
     print("PASS: fixed-geometry gzip control support")
 
+    mmu_patch = ROOT / "kernel/patches/record-arm64-mmu-on-markers.patch"
+    mmu_patch_text = mmu_patch.read_text()
+    for token in (
+        "G9E1306",
+        "G9E1307",
+        "gts9wifi_map_sec_log",
+        "gts9wifi_entry_marker_append_mmu_on",
+        "G9E1317",
+    ):
+        if token not in mmu_patch_text:
+            raise RuntimeError("missing MMU-on persistent marker support: " + token)
+    if "record-arm64-mmu-on-markers.patch" not in (
+        ROOT / "kernel/patches/series"
+    ).read_text().splitlines():
+        raise RuntimeError("MMU-on marker patch is not enabled in series")
+    print("PASS: MMU-on persistent entry markers")
+
     init_text = (ROOT / "initramfs/init").read_text()
     for marker in REQUIRED_INIT_MARKERS:
         if marker not in init_text:

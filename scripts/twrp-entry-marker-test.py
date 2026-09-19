@@ -29,13 +29,14 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 PATCH = ROOT / "kernel/patches/record-arm64-entry-markers.patch"
+MMU_PATCH = ROOT / "kernel/patches/record-arm64-mmu-on-markers.patch"
 SERIES = ROOT / "kernel/patches/series"
 SNAPSHOT = ROOT / "artifacts/device-snapshot-sm-x710-20260918"
 BUNDLE = ROOT / "artifacts/boot-bundle"
 STATE_DIR = ROOT / "artifacts/entry-marker-test"
 STATE_FILE = STATE_DIR / "active.json"
 PARTITIONS = ("boot", "init_boot", "vendor_boot", "dtbo")
-MARKERS = ("G9E1301", "G9E1302", "G9E1303", "G9E1304", "G9E1305")
+MARKERS = tuple(f"G9E13{i:02d}" for i in range(1, 18))
 USB_DIAG_RE = re.compile(
     r"(?:dwc3|\budc\b|gadget|usb0|\bncm\b|eusb|ptn3222|type-?c|configfs|"
     r"rpmh|tcsr|GTS9WIFI: device_link|GTS9WIFI: platform_supplier|"
@@ -50,6 +51,18 @@ PATTERNS = {
     "entry_03": re.compile(r"G9E1303"),
     "entry_04": re.compile(r"G9E1304"),
     "entry_05": re.compile(r"G9E1305"),
+    "entry_06": re.compile(r"G9E1306"),
+    "entry_07": re.compile(r"G9E1307"),
+    "entry_08": re.compile(r"G9E1308"),
+    "entry_09": re.compile(r"G9E1309"),
+    "entry_10": re.compile(r"G9E1310"),
+    "entry_11": re.compile(r"G9E1311"),
+    "entry_12": re.compile(r"G9E1312"),
+    "entry_13": re.compile(r"G9E1313"),
+    "entry_14": re.compile(r"G9E1314"),
+    "entry_15": re.compile(r"G9E1315"),
+    "entry_16": re.compile(r"G9E1316"),
+    "entry_17": re.compile(r"G9E1317"),
     "setup_after_fdt": re.compile(r"GTS9WIFI: setup_arch after_fdt"),
     "setup_after_memblock": re.compile(r"GTS9WIFI: setup_arch after_memblock"),
     "setup_after_paging": re.compile(r"GTS9WIFI: setup_arch after_paging"),
@@ -180,6 +193,18 @@ STAGES = (
     ("setup_after_paging", "SETUP_ARCH_AFTER_PAGING"),
     ("setup_after_memblock", "SETUP_ARCH_AFTER_MEMBLOCK"),
     ("setup_after_fdt", "SETUP_ARCH_AFTER_FDT"),
+    ("entry_17", "HEAD_BEFORE_START_KERNEL"),
+    ("entry_16", "HEAD_AFTER_FINALISE_EL2"),
+    ("entry_15", "HEAD_BEFORE_FINALISE_EL2"),
+    ("entry_14", "HEAD_PRIMARY_SWITCHED"),
+    ("entry_13", "HEAD_AFTER_EARLY_MAP_KERNEL"),
+    ("entry_12", "HEAD_AFTER_MAP_KERNEL"),
+    ("entry_11", "HEAD_BEFORE_MAP_KERNEL"),
+    ("entry_10", "HEAD_AFTER_FEATURE_OVERRIDE"),
+    ("entry_09", "HEAD_AFTER_EARLY_CLEAR"),
+    ("entry_08", "HEAD_AFTER_FDT_MAP"),
+    ("entry_07", "HEAD_EARLY_MAP_KERNEL_ENTER"),
+    ("entry_06", "HEAD_BEFORE_ENABLE_MMU"),
     ("entry_05", "HEAD_AFTER_CPU_SETUP"),
     ("entry_04", "HEAD_AFTER_INIT_KERNEL_EL"),
     ("entry_03", "HEAD_AFTER_IDMAP_CREATE"),
@@ -228,6 +253,8 @@ def patch_id():
 def verify_repo():
     if not PATCH.is_file():
         raise RuntimeError("entry-marker patch is missing")
+    if not MMU_PATCH.is_file():
+        raise RuntimeError("MMU-on entry-marker patch is missing")
     late_patch = ROOT / "kernel/patches/record-late-boot-checkpoints.patch"
     exec_patch = ROOT / "kernel/patches/record-rdinit-exec-result.patch"
     if not late_patch.is_file():
@@ -235,10 +262,10 @@ def verify_repo():
     if not exec_patch.is_file():
         raise RuntimeError("rdinit exec-result patch is missing")
     series = SERIES.read_text().splitlines()
-    for required in (PATCH.name, late_patch.name, exec_patch.name):
+    for required in (PATCH.name, MMU_PATCH.name, late_patch.name, exec_patch.name):
         if required not in series:
             raise RuntimeError(required + " is not enabled in series")
-    text = PATCH.read_text()
+    text = PATCH.read_text() + "\n" + MMU_PATCH.read_text()
     for marker in MARKERS:
         if marker not in text:
             raise RuntimeError("missing marker in patch: " + marker)
@@ -472,6 +499,15 @@ def last_match(summary, key):
 
 def record_interpretation(summary):
     m = summary.get("matches", {})
+    if not m.get("linux") and any(m.get(f"entry_{i:02d}") for i in range(6, 18)):
+        return (
+            "主线内核已越过早期 MMU-off 入口并执行到 "
+            + deepest(m)
+            + "；尚未观察到 Linux printk/setup_arch。当前应继续沿 "
+              "__enable_mmu、early_map_kernel、primary virtual switch、"
+              "finalise_el2/start_kernel 这条 very-early 路径定位，USB/RPMh "
+              "尚未进入有效诊断阶段。"
+        )
     if not m.get("linux") and m.get("uefi_end"):
         return "ABL 已完成正常启动路径并到达 ExitBootServices，但本轮没有任何 mainline Linux marker；该结果尚未执行到内核配置/RPMh/USB 修复验证阶段。由于本机此前存在同一镜像可复现性波动，应优先原样重放完全相同的 tested bundle，再决定是否归因于新内核。"
     if m.get("mount_sysfs_failed"):

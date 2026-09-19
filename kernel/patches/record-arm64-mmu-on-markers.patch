@@ -1,0 +1,196 @@
+Subject: [PATCH] arm64: trace SM-X710 MMU-on primary boot path
+
+Extend the persistent SM-X710 entry trace past __cpu_setup(). Keep the
+Samsung sec-log reservation identity-mapped in the initial TTBR0 page tables
+once early_map_kernel() is entered, then record bounded checkpoints across the
+FDT mapping, early clear, feature override, kernel mapping, primary virtual
+switch, finalise_el2(), and the start_kernel() handoff.
+
+The extra mapping and writes are diagnostic-only and compiled under
+CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG.
+
+diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
+--- a/arch/arm64/kernel/head.S
++++ b/arch/arm64/kernel/head.S
+@@ -153,6 +153,27 @@
+ 	dsb	sy
+ 1:	ret
+ SYM_CODE_END(gts9wifi_entry_marker_append)
++
++/*
++ * MMU-on variant.  The sec-log PA is identity-mapped by early_map_kernel();
++ * clean both the data slot and header so recovery sees the marker after reset.
++ */
++SYM_CODE_START_LOCAL(gts9wifi_entry_marker_append_mmu_on)
++	mov_q	x9, 0x0000000880200000
++	ldr	w10, [x9, #8]
++	cmp	w10, #248
++	b.hi	1f
++	add	x11, x9, #16
++	add	x11, x11, w10, uxtw
++	str	x12, [x11]
++	add	w10, w10, #8
++	str	w10, [x9, #8]
++	str	w10, [x9, #12]
++	dc	cvac, x11
++	dc	cvac, x9
++	dsb	sy
++1:	ret
++SYM_CODE_END(gts9wifi_entry_marker_append_mmu_on)
+ #endif
+ 
+ 	__INIT
+@@ -192,6 +213,10 @@
+  *   x0 = __pa(KERNEL_START)
+  */
+ SYM_FUNC_START_LOCAL(__primary_switched)
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	mov_q	x12, 0x0a34313331453947	// "G9E1314\n"
++	bl	gts9wifi_entry_marker_append_mmu_on
++#endif
+ 	adr_l	x4, init_task
+ 	init_cpu_task x4, x5, x6
+ 
+@@ -214,9 +239,21 @@
+ #if defined(CONFIG_KASAN_GENERIC) || defined(CONFIG_KASAN_SW_TAGS)
+ 	bl	kasan_early_init
+ #endif
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	mov_q	x12, 0x0a35313331453947	// "G9E1315\n"
++	bl	gts9wifi_entry_marker_append_mmu_on
++#endif
+ 	mov	x0, x20
+ 	bl	finalise_el2			// Prefer VHE if possible
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	mov_q	x12, 0x0a36313331453947	// "G9E1316\n"
++	bl	gts9wifi_entry_marker_append_mmu_on
++#endif
+ 	ldp	x29, x30, [sp], #16
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	mov_q	x12, 0x0a37313331453947	// "G9E1317\n"
++	bl	gts9wifi_entry_marker_append_mmu_on
++#endif
+ 	bl	start_kernel
+ 	ASM_BUG()
+ SYM_FUNC_END(__primary_switched)
+@@ -473,6 +510,10 @@
+ SYM_FUNC_START_LOCAL(__primary_switch)
+ 	adrp	x1, reserved_pg_dir
+ 	adrp	x2, __pi_init_idmap_pg_dir
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	mov_q	x12, 0x0a36303331453947	// "G9E1306\n"
++	bl	gts9wifi_entry_marker_append
++#endif
+ 	bl	__enable_mmu
+ 
+ 	adrp	x1, early_init_stack
+@@ -481,6 +522,10 @@
+ 	mov	x0, x20				// pass the full boot status
+ 	mov	x1, x21				// pass the FDT
+ 	bl	__pi_early_map_kernel		// Map and relocate the kernel
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	mov_q	x12, 0x0a33313331453947	// "G9E1313\n"
++	bl	gts9wifi_entry_marker_append_mmu_on
++#endif
+ 
+ 	ldr	x8, =__primary_switched
+ 	adrp	x0, KERNEL_START		// __pa(KERNEL_START)
+
+diff --git a/arch/arm64/kernel/pi/map_kernel.c b/arch/arm64/kernel/pi/map_kernel.c
+--- a/arch/arm64/kernel/pi/map_kernel.c
++++ b/arch/arm64/kernel/pi/map_kernel.c
+@@ -215,6 +215,50 @@
+ 	return (void *)fdt;
+ }
+ 
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++#define GTS9WIFI_SEC_LOG_BASE	0x880200000ULL
++#define GTS9WIFI_SEC_LOG_SIZE	SZ_2M
++
++static void __init gts9wifi_map_sec_log(void)
++{
++	static u8 ptes[INIT_IDMAP_FDT_SIZE] __initdata __aligned(PAGE_SIZE);
++	phys_addr_t ptep = (phys_addr_t)ptes;
++
++	/*
++	 * Keep Samsung's persistent 2 MiB log identity-mapped while TTBR0 still
++	 * points at the initial idmap.  This lets the MMU-on bring-up path leave
++	 * checkpoints before the normal early_ioremap/console infrastructure.
++	 */
++	map_range(&ptep, GTS9WIFI_SEC_LOG_BASE,
++		  GTS9WIFI_SEC_LOG_BASE + GTS9WIFI_SEC_LOG_SIZE,
++		  GTS9WIFI_SEC_LOG_BASE, PAGE_KERNEL, IDMAP_ROOT_LEVEL,
++		  (pte_t *)init_idmap_pg_dir, false, 0);
++	dsb(ishst);
++	isb();
++}
++
++static void __init gts9wifi_sec_log_pi_marker(u64 marker)
++{
++	volatile u32 *index = (volatile u32 *)(GTS9WIFI_SEC_LOG_BASE + 8);
++	volatile u32 *previous = (volatile u32 *)(GTS9WIFI_SEC_LOG_BASE + 12);
++	volatile u64 *slot;
++	u32 offset = *index;
++
++	if (offset > 248)
++		return;
++
++	slot = (volatile u64 *)(GTS9WIFI_SEC_LOG_BASE + 16 + offset);
++	*slot = marker;
++	*index = offset + sizeof(marker);
++	*previous = offset + sizeof(marker);
++
++	/* Recovery reads this after a reset, so push both data and header to PoC. */
++	asm volatile("dc cvac, %0" :: "r"(slot) : "memory");
++	asm volatile("dc cvac, %0" :: "r"((void *)GTS9WIFI_SEC_LOG_BASE) : "memory");
++	asm volatile("dsb sy" ::: "memory");
++}
++#endif
++
+ /*
+  * PI version of the Cavium Eratum 27456 detection, which makes it
+  * impossible to use non-global mappings.
+@@ -247,14 +291,30 @@
+ 	int root_level = 4 - CONFIG_PGTABLE_LEVELS;
+ 	int va_bits = VA_BITS;
+ 	int chosen;
+-	void *fdt_mapped = map_fdt(fdt);
++	void *fdt_mapped;
++
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	gts9wifi_map_sec_log();
++	gts9wifi_sec_log_pi_marker(0x0a37303331453947); /* G9E1307 */
++#endif
++
++	fdt_mapped = map_fdt(fdt);
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	gts9wifi_sec_log_pi_marker(0x0a38303331453947); /* G9E1308 */
++#endif
+ 
+ 	/* Clear BSS and the initial page tables */
+ 	memset(__bss_start, 0, (char *)init_pg_end - (char *)__bss_start);
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	gts9wifi_sec_log_pi_marker(0x0a39303331453947); /* G9E1309 */
++#endif
+ 
+ 	/* Parse the command line for CPU feature overrides */
+ 	chosen = fdt_path_offset(fdt_mapped, chosen_str);
+ 	init_feature_override(boot_status, fdt_mapped, chosen);
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	gts9wifi_sec_log_pi_marker(0x0a30313331453947); /* G9E1310 */
++#endif
+ 
+ 	if (IS_ENABLED(CONFIG_ARM64_64K_PAGES) && !cpu_has_lva()) {
+ 		va_bits = VA_BITS_MIN;
+@@ -286,5 +346,11 @@
+ 		remap_idmap_for_lpa2();
+ 
+ 	va_base = KIMAGE_VADDR + kaslr_offset;
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	gts9wifi_sec_log_pi_marker(0x0a31313331453947); /* G9E1311 */
++#endif
+ 	map_kernel(kaslr_offset, va_base - pa_base, root_level);
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	gts9wifi_sec_log_pi_marker(0x0a32313331453947); /* G9E1312 */
++#endif
+ }
