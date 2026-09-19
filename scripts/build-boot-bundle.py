@@ -18,6 +18,41 @@ PAGE = 4096
 CMDLINE = "rdinit=/init console=null loglevel=8 ignore_loglevel printk.devkmsg=on clk_ignore_unused pd_ignore_unused regulator_ignore_unused panic=0 bootconfig"
 def padded(data, page=PAGE):
     return data + b"\0" * (-len(data) % page)
+
+def gzip_kernel(data, target_size=None):
+    """Return deterministic gzip, optionally padded with a standard FEXTRA field.
+
+    This is diagnostic-only: it lets two different raw Images place the
+    appended DTB at the same byte offset without changing the decompressed
+    kernel.  The gzip trailer remains untouched because FEXTRA is header data.
+    """
+    stream = gzip.compress(data, mtime=0)
+    if target_size is None or target_size == len(stream):
+        return stream
+    if target_size < len(stream):
+        sys.exit(
+            f"Requested kernel gzip target {target_size} is smaller than "
+            f"the natural stream {len(stream)}"
+        )
+    delta = target_size - len(stream)
+    if delta == 1:
+        sys.exit("A gzip FEXTRA field cannot add exactly one byte")
+    extra_len = delta - 2
+    if extra_len > 0xffff:
+        sys.exit("Requested gzip padding exceeds the 65535-byte FEXTRA limit")
+    if stream[3] & 0x04:
+        sys.exit("Unexpected pre-existing gzip FEXTRA flag")
+    stream = (
+        stream[:3]
+        + bytes([stream[3] | 0x04])
+        + stream[4:10]
+        + struct.pack("<H", extra_len)
+        + bytes(extra_len)
+        + stream[10:]
+    )
+    if len(stream) != target_size:
+        raise AssertionError("gzip target-size construction failed")
+    return stream
 def boot_v4(kernel=b"", ramdisk=b"", os_version=0):
     header = b"ANDROID!" + struct.pack("<4I", len(kernel), len(ramdisk), os_version, 1584)
     header += b"\0" * 16 + struct.pack("<I", 4) + b"\0" * 1536 + struct.pack("<I", 0)
@@ -44,6 +79,14 @@ def main():
     parser.add_argument("--dtb", type=Path, default=ROOT / "artifacts/kernel/sm8550-samsung-gts9wifi.dtb")
     parser.add_argument("--initramfs", type=Path, default=ROOT / "artifacts/initramfs/initramfs.cpio.gz")
     parser.add_argument("--output", type=Path, default=ROOT / "artifacts/boot-bundle")
+    parser.add_argument(
+        "--kernel-gzip-target-size",
+        type=int,
+        help=(
+            "diagnostic only: pad the gzip header with a standard FEXTRA field "
+            "so the appended DTB begins at this exact gzip-stream offset"
+        ),
+    )
     args = parser.parse_args()
     profile = json.loads((ROOT / "device/boot-profile.json").read_text())
     if profile["model"] != "SM-X710" or profile["board_id"] != [0x10008,4]:
@@ -62,9 +105,10 @@ def main():
     def compress(data):
         return subprocess.run([str(lz4), "-l", "-12", "-c"], input=data, capture_output=True, check=True).stdout
     dtb = args.dtb.read_bytes()
+    kernel_gzip = gzip_kernel(kernel, args.kernel_gzip_target_size)
     args.output.mkdir(parents=True, exist_ok=True)
     blobs = {
-        "boot": boot_v4(gzip.compress(kernel,mtime=0) + dtb, os_version=profile["boot_images"]["boot"]["os_version"]),
+        "boot": boot_v4(kernel_gzip + dtb, os_version=profile["boot_images"]["boot"]["os_version"]),
         "init_boot": boot_v4(ramdisk=compress(initrd)),
         "vendor_boot": vendor_v4(dtb,compress(empty_newc()),profile),
         # Ultra's tested fallback deliberately avoids an Android DT table.
@@ -92,6 +136,8 @@ def main():
                   kernel_config_sha256=kernel_config_sha256,
                   bootloader_route="Experimental Ultra appended-DTB fallback; invalid DT-table payload",
                   vbmeta="Not generated or modified; owner's captured vbmeta has verification-disabled flag 2",
+                  kernel_gzip_size=len(kernel_gzip),
+                  kernel_gzip_target_size=args.kernel_gzip_target_size,
                   firmware_dtb_sha256=hashlib.sha256(dtb).hexdigest(),
                   firmware_dtb_policy='Exact first S9 boot-confirmed DTB; retains legacy no-map reservations',
                   source_pin=json.loads((ROOT/"device/sources.json").read_text())["linux_commit"],

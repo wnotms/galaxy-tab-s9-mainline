@@ -47,6 +47,17 @@ def main():
     stream = zlib.decompressobj(31); raw = stream.decompress(kernel)
     require(stream.eof and raw[56:60] == b"ARM\x64", "Invalid compressed ARM64 kernel")
     dtb = stream.unused_data
+    gzip_size = len(kernel) - len(dtb)
+    if "kernel_gzip_size" in manifest:
+        require(
+            manifest["kernel_gzip_size"] == gzip_size,
+            "Manifest kernel gzip size does not match boot payload",
+        )
+    if manifest.get("kernel_gzip_target_size") is not None:
+        require(
+            manifest["kernel_gzip_target_size"] == gzip_size,
+            "Kernel gzip target size was not preserved",
+        )
     require(len(dtb)>40 and struct.unpack_from('>I',dtb)[0] == 0xd00dfeed and struct.unpack_from('>I',dtb,4)[0] == len(dtb), "Invalid appended DTB")
     # Validate the DTB actually inside the bundle, even if the build tree changed.
     import tempfile

@@ -135,6 +135,16 @@ def main() -> int:
         raise RuntimeError("entry-marker harness lacks s9u-control profile support")
     print("PASS: pinned S9 Ultra config control profile")
 
+    bundle_builder_text = (ROOT / "scripts/build-boot-bundle.py").read_text()
+    for token in (
+        "--kernel-gzip-target-size",
+        "FEXTRA",
+        "kernel_gzip_target_size",
+    ):
+        if token not in bundle_builder_text:
+            raise RuntimeError("missing fixed-geometry gzip control support: " + token)
+    print("PASS: fixed-geometry gzip control support")
+
     init_text = (ROOT / "initramfs/init").read_text()
     for marker in REQUIRED_INIT_MARKERS:
         if marker not in init_text:
