@@ -1,63 +1,40 @@
-# Next test: s9u-va48 without RELR packing
+# Next test: VA48 without RELR relocation packing
 
-## Why this control exists
-
-The latest Linux-reaching run reports:
+The current s9u-va48 run entered dynamic_debug_init() but the first built-in
+descriptor reported:
 
 ```text
-dynamic_debug_init enter descs=17160 ...
-dynamic_debug_init walk i=0 ...
 base_modname=0000000000178000
 current_modname=0000000000178000
 ```
 
-A built-in `struct _ddebug.modname` is a normal kernel pointer.  A value such
-as `0x178000` is not a valid kernel virtual pointer for this image and
-explains why the first `strcmp(modname, iter->modname)` cannot complete.
+That is not a canonical kernel virtual address.  The next operation is
+strcmp(modname, iter->modname), so this run is consistent with an immediate
+fault on an unrelocated/corrupted descriptor pointer.
 
-The pinned arm64 kernel is relocatable.  The S9 Ultra reference config enables
-`CONFIG_RELR=y`, while the bring-up fragment disables KASLR but leaves
-`CONFIG_RELOCATABLE=y`.  This profile changes only the relocation packing
-format:
+The S9 Ultra reference enables CONFIG_RELOCATABLE and CONFIG_RELR.  arm64
+relocate_kernel() applies RELA entries from explicit addends and applies RELR
+entries by adding the runtime displacement to in-place values.  This control
+keeps the same VA48/PA48/no-BTI setup but disables CONFIG_RELR, forcing the
+relative relocation table away from the RELR path.
 
-```text
-s9u-va48:         CONFIG_RELR=y
-s9u-va48-norelr: CONFIG_RELR=n
-```
-
-Both remain relocatable, VA48/PA48, four-level, no-LPA2 and no-BTI.
-
-## Preserve the current vmlinux evidence first
-
-Before using `--clean-source`, inspect the current RELR build:
-
-```bash
-grep -E 'CONFIG_(RELOCATABLE|RELR|RANDOMIZE_BASE)=' artifacts/kernel/config
-
-DYNDBG=$(llvm-nm -n work/kernel-build/vmlinux |
-  awk '$3=="__start___dyndbg" {print $1; exit}')
-echo "__start___dyndbg=$DYNDBG"
-
-llvm-readelf -rW work/kernel-build/vmlinux |
-  grep -i "$DYNDBG" || true
-
-llvm-objdump -s -j __dyndbg work/kernel-build/vmlinux |
-  head -n 12
-```
-
-Keep that output with the run record.
-
-## Build no-RELR control
+Build:
 
 ```bash
 python3 scripts/twrp-entry-marker-test.py restore
 git pull --rebase origin main
-
 JOBS=10 python3 scripts/twrp-entry-marker-test.py build \
-  --clean-source \
   --config-profile s9u-va48-norelr
+```
 
-grep -E 'CONFIG_(RELOCATABLE|RELR|RANDOMIZE_BASE)=' artifacts/kernel/config
+No --clean-source is required because the active patch series is unchanged.
+
+Verify:
+
+```bash
+grep -E 'CONFIG_(RELR|RELOCATABLE|RANDOMIZE_BASE|ARM64_VA_BITS=|ARM64_PA_BITS=|PGTABLE_LEVELS)' \
+  artifacts/kernel/config
+cat artifacts/kernel/config-profile.txt
 ```
 
 Expected:
@@ -66,18 +43,20 @@ Expected:
 CONFIG_RELOCATABLE=y
 # CONFIG_RELR is not set
 # CONFIG_RANDOMIZE_BASE is not set
+CONFIG_ARM64_VA_BITS=48
+CONFIG_ARM64_PA_BITS=48
+CONFIG_PGTABLE_LEVELS=4
+s9u-va48-norelr
 ```
 
-Then flash, collect and restore normally.
+Then flash/collect normally.
 
-## Interpretation
+Interpretation:
 
-If the no-RELR image reaches `dynamic_debug_init()`, the first
-`base_modname/current_modname` should be a canonical kernel VA, not a small
-value such as `0x178000`.  If repeated no-RELR replays also stop showing the
-map_kernel/run-to-run failures, RELR relocation handling becomes the primary
-suspect.
-
-A single successful no-RELR boot is not enough to prove that conclusion:
-repeat the exact same bundle because this device has already shown
-state-dependent boot depth.
+- If dynamic_debug_init now reports a canonical ffff... modname and progresses,
+  RELR/in-place relocation handling becomes a strong suspect.
+- If the first modname is still a small value such as 0x178000, RELR packing is
+  not sufficient to explain it; inspect the static vmlinux relocation entry and
+  runtime relocation offset next.
+- If the image again stops before map_kernel returns, exact-replay the same
+  bundle before drawing a relocation-format conclusion.

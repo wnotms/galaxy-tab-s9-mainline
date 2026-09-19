@@ -160,6 +160,7 @@ def main() -> int:
         or "s9u-nobti" not in entry_test_text
         or "s9u-va48" not in entry_test_text
         or "s9u-va48-norelr" not in entry_test_text
+        or "s9u-va48-norelr" not in entry_test_text
     ):
         raise RuntimeError("entry-marker harness lacks s9u-control profile support")
     nobti = (ROOT / "kernel/config/s9u-nobti.fragment").read_text()
@@ -181,6 +182,11 @@ def main() -> int:
         raise RuntimeError("check-config lacks RELR-on control validation")
     if "s9u-va48-norelr must keep CONFIG_RELR disabled" not in check_config_text:
         raise RuntimeError("check-config lacks no-RELR control validation")
+    norelr = (ROOT / "kernel/config/s9u-norelr.fragment").read_text()
+    if "# CONFIG_RELR is not set" not in norelr:
+        raise RuntimeError("S9U no-RELR override is missing CONFIG_RELR=n")
+    if "s9u-va48-norelr" not in check_config_text:
+        raise RuntimeError("check-config lacks s9u-va48-norelr validation")
     print("PASS: pinned S9 Ultra config control profiles")
     print("PASS: s9u-va48 RELR/no-RELR A/B control")
 
