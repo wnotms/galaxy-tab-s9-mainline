@@ -127,9 +127,19 @@ def main() -> int:
         's9u-nobti',
         'merge_config.sh',
         's9u-mainline-aarch64.reference.config',
+        'GTS9_CCACHE',
+        'CCACHE_DIR',
+        'CCACHE_MAXSIZE',
+        'CCACHE_COMPILERCHECK',
+        'MAKE_TOOLCHAIN',
+        'CC="ccache clang"',
+        'HOSTCC="ccache clang"',
+        'ccache --show-stats',
     ):
         if token not in build_kernel_text:
             raise RuntimeError("missing S9U control build support: " + token)
+
+    print("PASS: optional ccache kernel build support")
 
     entry_test_text = (ROOT / "scripts/twrp-entry-marker-test.py").read_text()
     if (

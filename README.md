@@ -23,7 +23,7 @@
 
 ## 构建
 
-主机需要 Linux、Python 3.12+、Git、Make、Clang/LLVM/lld、GCC、Bison、Flex、OpenSSL 和 libelf 开发头文件、`dpkg-deb`。本次使用 Clang/LLVM 21.1.8。内核使用 LLVM 交叉编译，无需安装 GNU AArch64 交叉工具链。
+主机需要 Linux、Python 3.12+、Git、Make、Clang/LLVM/lld、GCC、Bison、Flex、OpenSSL 和 libelf 开发头文件、`dpkg-deb`。本次使用 Clang/LLVM 21.1.8。内核使用 LLVM 交叉编译，无需安装 GNU AArch64 交叉工具链。可选安装 `ccache`；脚本检测到后会自动用于 Clang/Host Clang 编译。
 
 ```sh
 make bundle
@@ -31,6 +31,23 @@ make check
 ```
 
 首次构建会下载固定的主线内核、Debian ARM64 静态 BusyBox、LZ4 和 AOSP avbtool，全部保存在 `work/`。版本、提交与 SHA256 记录在 `device/` 中；后续缓存齐全时可离线构建。默认 `JOBS=8`，例如 `JOBS=4 make bundle`。
+
+### ccache
+
+如果主机已安装 `ccache`，内核构建会默认自动启用。默认缓存目录为 `$HOME/.cache/ccache`，最大缓存容量为 20 GiB，并使用 `CCACHE_COMPILERCHECK=content`，因此即使 `--clean-source` 删除 `work/kernel-src` 和 `work/kernel-build`，外部 ccache 仍可复用没有变化的编译结果。
+
+```sh
+sudo apt install ccache
+
+# 可选：显式指定缓存目录和容量
+export CCACHE_DIR="$HOME/.cache/ccache"
+export CCACHE_MAXSIZE=20G
+
+make kernel
+ccache --show-stats
+```
+
+默认 `GTS9_CCACHE=auto`：检测到 ccache 就启用，没有安装则回退到普通 Clang 编译。可用 `GTS9_CCACHE=0` 强制禁用；用 `GTS9_CCACHE=1` 强制启用（未安装时直接报错）。
 
 产物：
 

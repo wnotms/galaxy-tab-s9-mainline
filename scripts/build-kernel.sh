@@ -13,6 +13,43 @@ PROFILE="${GTS9_CONFIG_PROFILE:-bringup}"
 BRINGUP_CONFIG="$ROOT/kernel/config/gts9wifi-bringup.config"
 S9U_REFERENCE_CONFIG="$ROOT/kernel/config/s9u-mainline-aarch64.reference.config"
 S9U_NOBTI_CONFIG="$ROOT/kernel/config/s9u-nobti.fragment"
+
+# Optional compiler cache.  Auto-enable when ccache is installed, while keeping
+# an explicit opt-out for reproducibility checks and constrained hosts.
+CCACHE_MODE="${GTS9_CCACHE:-auto}"
+CCACHE_ENABLED=0
+case "$CCACHE_MODE" in
+ auto)
+  command -v ccache >/dev/null 2>&1 && CCACHE_ENABLED=1
+  ;;
+  1|on|yes|true)
+  command -v ccache >/dev/null 2>&1 || {
+   echo "GTS9_CCACHE=$CCACHE_MODE requested but ccache is not installed" >&2
+   exit 1
+  }
+  CCACHE_ENABLED=1
+  ;;
+  0|off|no|false)
+  ;;
+ *)
+  echo "Unknown GTS9_CCACHE: $CCACHE_MODE (expected auto, 1/on/yes/true, or 0/off/no/false)" >&2
+  exit 1
+  ;;
+esac
+
+MAKE_TOOLCHAIN=(ARCH=arm64 LLVM=1)
+if (( CCACHE_ENABLED )); then
+ : "${HOME:?HOME must be set when ccache is enabled}"
+ export CCACHE_DIR="${CCACHE_DIR:-$HOME/.cache/ccache}"
+ export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-20G}"
+ export CCACHE_COMPILERCHECK="${CCACHE_COMPILERCHECK:-content}"
+ mkdir -p "$CCACHE_DIR"
+ MAKE_TOOLCHAIN+=(CC="ccache clang" HOSTCC="ccache clang")
+ echo "ccache enabled: dir=$CCACHE_DIR max=$CCACHE_MAXSIZE compiler_check=$CCACHE_COMPILERCHECK"
+else
+ echo "ccache disabled (GTS9_CCACHE=$CCACHE_MODE)"
+fi
+
 mkdir -p work artifacts/kernel
 
 case "$PROFILE" in
@@ -52,7 +89,7 @@ cp kernel/dts/sm8550-samsung-gts9wifi.dts "$SRC/arch/arm64/boot/dts/qcom/"
 mkdir -p "$OUT"
 case "$PROFILE" in
  bringup)
-  make -C "$SRC" O="$OUT" ARCH=arm64 LLVM=1 KCONFIG_ALLCONFIG="$BRINGUP_CONFIG" allnoconfig
+  make -C "$SRC" O="$OUT" "${MAKE_TOOLCHAIN[@]}" KCONFIG_ALLCONFIG="$BRINGUP_CONFIG" allnoconfig
   ;;
  s9u-control|s9u-nobti)
   [[ -f "$S9U_REFERENCE_CONFIG" ]] || { echo "Missing S9 Ultra reference config" >&2; exit 1; }
@@ -64,11 +101,15 @@ case "$PROFILE" in
   fi
   KCONFIG_CONFIG="$OUT/.config" bash "$SRC/scripts/kconfig/merge_config.sh" -m -O "$OUT" \
     "${merge_inputs[@]}"
-  make -C "$SRC" O="$OUT" ARCH=arm64 LLVM=1 olddefconfig
+  make -C "$SRC" O="$OUT" "${MAKE_TOOLCHAIN[@]}" olddefconfig
   ;;
 esac
 python3 scripts/check-config.py "$OUT/.config" --profile "$PROFILE"
-make -C "$SRC" O="$OUT" ARCH=arm64 LLVM=1 -j"${JOBS:-8}" Image qcom/sm8550-samsung-gts9wifi.dtb
+make -C "$SRC" O="$OUT" "${MAKE_TOOLCHAIN[@]}" -j"${JOBS:-8}" Image qcom/sm8550-samsung-gts9wifi.dtb
+if (( CCACHE_ENABLED )); then
+ echo "ccache statistics after kernel build:"
+ ccache --show-stats
+fi
 cp "$OUT/arch/arm64/boot/Image" artifacts/kernel/
 cp "$OUT/arch/arm64/boot/dts/qcom/sm8550-samsung-gts9wifi.dtb" artifacts/kernel/
 cp "$OUT/.config" artifacts/kernel/config
