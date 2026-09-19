@@ -9,7 +9,18 @@ TAG=$(python3 -c 'import json; print(json.load(open("device/sources.json"))["lin
 CACHE="$ROOT/work/linux-mainline"
 SRC="$ROOT/work/kernel-src"
 OUT="$ROOT/work/kernel-build"
+PROFILE="${GTS9_CONFIG_PROFILE:-bringup}"
+BRINGUP_CONFIG="$ROOT/kernel/config/gts9wifi-bringup.config"
+S9U_REFERENCE_CONFIG="$ROOT/kernel/config/s9u-mainline-aarch64.reference.config"
 mkdir -p work artifacts/kernel
+
+case "$PROFILE" in
+ bringup|s9u-control) ;;
+ *)
+  echo "Unknown GTS9_CONFIG_PROFILE: $PROFILE (expected bringup or s9u-control)" >&2
+  exit 1
+  ;;
+esac
 if [[ ! -d "$CACHE/.git" ]]; then
  git clone --depth 1 --branch "$TAG" https://github.com/torvalds/linux.git "$CACHE"
 fi
@@ -38,12 +49,24 @@ fi
 [[ $(cat "$SRC/.gts9-source") == "$PIN $PATCH_ID" ]] || { echo 'Source pin or patches changed; move work/kernel-src aside' >&2; exit 1; }
 cp kernel/dts/sm8550-samsung-gts9wifi.dts "$SRC/arch/arm64/boot/dts/qcom/"
 mkdir -p "$OUT"
-make -C "$SRC" O="$OUT" ARCH=arm64 LLVM=1 KCONFIG_ALLCONFIG="$ROOT/kernel/config/gts9wifi-bringup.config" allnoconfig
-python3 scripts/check-config.py "$OUT/.config"
+case "$PROFILE" in
+ bringup)
+  make -C "$SRC" O="$OUT" ARCH=arm64 LLVM=1 KCONFIG_ALLCONFIG="$BRINGUP_CONFIG" allnoconfig
+  ;;
+ s9u-control)
+  [[ -f "$S9U_REFERENCE_CONFIG" ]] || { echo "Missing S9 Ultra reference config" >&2; exit 1; }
+  rm -f "$OUT/.config"
+  KCONFIG_CONFIG="$OUT/.config" bash "$SRC/scripts/kconfig/merge_config.sh" -m -O "$OUT" \
+    "$S9U_REFERENCE_CONFIG" "$BRINGUP_CONFIG"
+  make -C "$SRC" O="$OUT" ARCH=arm64 LLVM=1 olddefconfig
+  ;;
+esac
+python3 scripts/check-config.py "$OUT/.config" --profile "$PROFILE"
 make -C "$SRC" O="$OUT" ARCH=arm64 LLVM=1 -j"${JOBS:-8}" Image qcom/sm8550-samsung-gts9wifi.dtb
 cp "$OUT/arch/arm64/boot/Image" artifacts/kernel/
 cp "$OUT/arch/arm64/boot/dts/qcom/sm8550-samsung-gts9wifi.dtb" artifacts/kernel/
 cp "$OUT/.config" artifacts/kernel/config
+printf '%s\n' "$PROFILE" > artifacts/kernel/config-profile.txt
 python3 scripts/check-device-tree.py artifacts/kernel/sm8550-samsung-gts9wifi.dtb
 python3 - <<'DTB_PIN_CHECK'
 import hashlib,json,pathlib

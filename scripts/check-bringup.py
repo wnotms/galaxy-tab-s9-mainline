@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import hashlib
 import subprocess
 import sys
 
@@ -95,6 +96,44 @@ def main() -> int:
                 "missing required bring-up config fragment entry: " + required_config
             )
     print("PASS: PSCI/RPMh/TCSR/eUSB2/DWC3 config chain")
+
+    reference = ROOT / "kernel/config/s9u-mainline-aarch64.reference.config"
+    reference_sha = hashlib.sha256(reference.read_bytes()).hexdigest()
+    expected_reference_sha = "661c45023794690f38609be08e5a2a0b77eef5224f48f971f6d709a1871d132b"
+    if reference_sha != expected_reference_sha:
+        raise RuntimeError(
+            "S9 Ultra reference config hash mismatch: "
+            + reference_sha + " != " + expected_reference_sha
+        )
+    reference_text = reference.read_text()
+    for required_reference in (
+        "CONFIG_ARM_PSCI_CPUIDLE_DOMAIN=y",
+        "CONFIG_DT_IDLE_GENPD=y",
+        "CONFIG_SUSPEND=y",
+        "CONFIG_PM_SLEEP=y",
+        "CONFIG_PM_GENERIC_DOMAINS_SLEEP=y",
+        "CONFIG_INTERCONNECT_QCOM_SM8550=y",
+        "CONFIG_SM_TCSRCC_8550=y",
+    ):
+        if required_reference not in reference_text:
+            raise RuntimeError(
+                "S9 Ultra reference config missing: " + required_reference
+            )
+
+    build_kernel_text = (ROOT / "scripts/build-kernel.sh").read_text()
+    for token in (
+        'GTS9_CONFIG_PROFILE',
+        's9u-control',
+        'merge_config.sh',
+        's9u-mainline-aarch64.reference.config',
+    ):
+        if token not in build_kernel_text:
+            raise RuntimeError("missing S9U control build support: " + token)
+
+    entry_test_text = (ROOT / "scripts/twrp-entry-marker-test.py").read_text()
+    if "--config-profile" not in entry_test_text or "s9u-control" not in entry_test_text:
+        raise RuntimeError("entry-marker harness lacks s9u-control profile support")
+    print("PASS: pinned S9 Ultra config control profile")
 
     init_text = (ROOT / "initramfs/init").read_text()
     for marker in REQUIRED_INIT_MARKERS:

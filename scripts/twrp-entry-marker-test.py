@@ -662,12 +662,15 @@ def cmd_build(args):
         cwd=ROOT, check=True,
     )
     clean_stale_source(args.clean_source)
-    subprocess.run(["make", "bundle"], cwd=ROOT, check=True)
+    env = os.environ.copy()
+    env["GTS9_CONFIG_PROFILE"] = args.config_profile
+    subprocess.run(["make", "bundle"], cwd=ROOT, check=True, env=env)
     manifest = verify_bundle(args.bundle)
     info = {
         "built_utc": now(),
         "linux_commit": load(ROOT / "device/sources.json")["linux_commit"],
         "patch_id": patch_id(),
+        "config_profile": args.config_profile,
         "markers": MARKERS,
         "files": {
             p + ".img": manifest["files"][p + ".img"]["sha256"] for p in PARTITIONS
@@ -846,6 +849,12 @@ def main():
     p.add_argument("--bundle", type=Path, default=BUNDLE)
     p.add_argument("--run-dir", type=Path)
     p.add_argument("--clean-source", action="store_true")
+    p.add_argument(
+        "--config-profile",
+        choices=("bringup", "s9u-control"),
+        default="bringup",
+        help="kernel config generation profile used by the build command",
+    )
     p.add_argument("--force-new-run", action="store_true")
     p.add_argument("--observation-seconds", type=int, default=60)
     args = p.parse_args()

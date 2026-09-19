@@ -80,7 +80,16 @@ def main():
         subprocess.run([sys.executable,str(avb),"add_hash_footer","--image",str(path),
                         "--partition_name",name,"--partition_size",str(size),
                         "--salt",hashlib.sha256(blob).hexdigest()],check=True)
+    config_profile_path = ROOT / "artifacts/kernel/config-profile.txt"
+    kernel_config_path = ROOT / "artifacts/kernel/config"
+    config_profile = config_profile_path.read_text().strip() if config_profile_path.is_file() else "unknown"
+    kernel_config_sha256 = (
+        hashlib.sha256(kernel_config_path.read_bytes()).hexdigest()
+        if kernel_config_path.is_file() else None
+    )
     report = dict(model="SM-X710", profile="board04", hardware_boot_tested=False,
+                  kernel_config_profile=config_profile,
+                  kernel_config_sha256=kernel_config_sha256,
                   bootloader_route="Experimental Ultra appended-DTB fallback; invalid DT-table payload",
                   vbmeta="Not generated or modified; owner's captured vbmeta has verification-disabled flag 2",
                   firmware_dtb_sha256=hashlib.sha256(dtb).hexdigest(),
