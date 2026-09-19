@@ -12,7 +12,7 @@ CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG.
 diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
 --- a/arch/arm64/kernel/head.S
 +++ b/arch/arm64/kernel/head.S
-@@ -153,6 +153,50 @@
+@@ -208,6 +208,50 @@
  	dsb	sy
  1:	ret
  SYM_CODE_END(gts9wifi_entry_marker_append)
@@ -63,7 +63,7 @@ diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
 +SYM_CODE_END(gts9wifi_entry_marker_append_kernel_va)
 +#endif
 +
-@@ -192,6 +213,10 @@
+@@ -298,6 +342,10 @@
   *   x0 = __pa(KERNEL_START)
   */
  SYM_FUNC_START_LOCAL(__primary_switched)
@@ -74,7 +74,7 @@ diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
  	adr_l	x4, init_task
  	init_cpu_task x4, x5, x6
  
-@@ -214,9 +239,21 @@
+@@ -320,9 +368,21 @@
  #if defined(CONFIG_KASAN_GENERIC) || defined(CONFIG_KASAN_SW_TAGS)
  	bl	kasan_early_init
  #endif
@@ -96,7 +96,7 @@ diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
  	bl	start_kernel
  	ASM_BUG()
  SYM_FUNC_END(__primary_switched)
-@@ -473,6 +510,10 @@
+@@ -588,6 +648,10 @@
  SYM_FUNC_START_LOCAL(__primary_switch)
  	adrp	x1, reserved_pg_dir
  	adrp	x2, __pi_init_idmap_pg_dir
@@ -107,7 +107,7 @@ diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
  	bl	__enable_mmu
  
  	adrp	x1, early_init_stack
-@@ -481,6 +522,10 @@
+@@ -596,6 +660,10 @@
  	mov	x0, x20				// pass the full boot status
  	mov	x1, x21				// pass the FDT
  	bl	__pi_early_map_kernel		// Map and relocate the kernel
