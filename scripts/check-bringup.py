@@ -99,7 +99,7 @@ def main() -> int:
 
     reference = ROOT / "kernel/config/s9u-mainline-aarch64.reference.config"
     reference_sha = hashlib.sha256(reference.read_bytes()).hexdigest()
-    expected_reference_sha = "661c45023794690f38609be08e5a2a0b77eef5224f48f971f6d709a1871d132b"
+    expected_reference_sha = "754de673160f57c867ee8107ad2987db6bba09942b8df6aca4b6be85d22c4658"
     if reference_sha != expected_reference_sha:
         raise RuntimeError(
             "S9 Ultra reference config hash mismatch: "

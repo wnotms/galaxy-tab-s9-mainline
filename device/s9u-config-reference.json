@@ -3,7 +3,7 @@
   "repository": "agcarbajo/ubuntu-galaxy-tab-s9-ultra",
   "commit": "32273b0a410b3e73b20a3a2451e24260fb2a36bd",
   "path": "kernel/config/config-mainline.aarch64",
-  "sha256": "661c45023794690f38609be08e5a2a0b77eef5224f48f971f6d709a1871d132b",
+  "sha256": "754de673160f57c867ee8107ad2987db6bba09942b8df6aca4b6be85d22c4658",
   "kernel_base": "Linux 7.2-rc3 a13c140cc289c0b7b3770bce5b3ad42ab35074aa",
   "use": "Merged with kernel/config/gts9wifi-bringup.config only when GTS9_CONFIG_PROFILE=s9u-control"
 }
