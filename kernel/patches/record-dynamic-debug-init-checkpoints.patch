@@ -32,20 +32,37 @@ diff --git a/lib/dynamic_debug.c b/lib/dynamic_debug.c
 +		if (i < 4 || !(i & 0x3ff))
 +			pr_info("GTS9WIFI: dynamic_debug_init walk i=%d iter=%px base_modname=%px current_modname=%px\n",
 +				i, iter, modname, iter->modname);
++		if (i >= 7168 && i <= 8192 && !(i & 0x3f))
++			pr_info("GTS9WIFI: dynamic_debug_init cmp_before i=%d base_modname=%px current_modname=%px\n",
++				i, modname, iter->modname);
++
++		cmp = strcmp(modname, iter->modname);
++		if (i >= 7168 && i <= 8192 && !(i & 0x3f))
++			pr_info("GTS9WIFI: dynamic_debug_init cmp_after i=%d result=%d\n",
++				i, cmp);
  
- 		if (strcmp(modname, iter->modname)) {
+-		if (strcmp(modname, iter->modname)) {
++		if (cmp) {
  			mod_ct++;
  			di.num_descs = mod_sites;
  			di.descs = iter_mod_start;
-+			if (mod_ct < 8 || !(mod_ct & 0x3f))
-+				pr_info("GTS9WIFI: dynamic_debug_init add_begin module=%d sites=%d modname=%px\n",
-+					mod_ct, mod_sites, modname);
+-			if (mod_ct < 8 || !(mod_ct & 0x3f))
+-				pr_info("GTS9WIFI: dynamic_debug_init add_begin module=%d sites=%d modname=%px\n",
+-					mod_ct, mod_sites, modname);
++			if ((i >= 7168 && i <= 8192) ||
++			    mod_ct < 8 || !(mod_ct & 0x3f))
++				pr_info("GTS9WIFI: dynamic_debug_init add_begin i=%d module=%d sites=%d modname=%px\n",
++					i, mod_ct, mod_sites, modname);
  			ret = ddebug_add_module(&di, modname);
  			if (ret)
  				goto out_err;
-+			if (mod_ct < 8 || !(mod_ct & 0x3f))
-+				pr_info("GTS9WIFI: dynamic_debug_init add_done module=%d\n",
-+					mod_ct);
+-			if (mod_ct < 8 || !(mod_ct & 0x3f))
+-				pr_info("GTS9WIFI: dynamic_debug_init add_done module=%d\n",
+-					mod_ct);
++			if ((i >= 7168 && i <= 8192) ||
++			    mod_ct < 8 || !(mod_ct & 0x3f))
++				pr_info("GTS9WIFI: dynamic_debug_init add_done i=%d module=%d\n",
++					i, mod_ct);
  
  			mod_sites = 0;
  			modname = iter->modname;
