@@ -43,7 +43,7 @@ diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
 +#endif
  #ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
  	mov_q	x12, 0x0a34313331453947	// "G9E1314\n"
- 	bl	gts9wifi_entry_marker_append_mmu_on
+ 	bl	gts9wifi_entry_marker_append_kernel_va
 @@ -530,4 +548,11 @@
  	ldr	x8, =__primary_switched
 +#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
