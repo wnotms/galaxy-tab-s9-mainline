@@ -1,0 +1,7 @@
+# Diagnostic relocation-format control for SM-X710.
+#
+# Keep the s9u-va48 address geometry and relocatable kernel, but force all
+# dynamic relative relocations to remain in RELA instead of packed RELR.
+# This is intended to test the observed low __dyndbg pointer after runtime
+# relocation without changing the compiler, DTS, or ARM64 VA/PA geometry.
+# CONFIG_RELR is not set

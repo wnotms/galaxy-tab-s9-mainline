@@ -14,6 +14,7 @@ BRINGUP_CONFIG="$ROOT/kernel/config/gts9wifi-bringup.config"
 S9U_REFERENCE_CONFIG="$ROOT/kernel/config/s9u-mainline-aarch64.reference.config"
 S9U_NOBTI_CONFIG="$ROOT/kernel/config/s9u-nobti.fragment"
 S9U_VA48_CONFIG="$ROOT/kernel/config/s9u-va48.fragment"
+S9U_VA48_NORELR_CONFIG="$ROOT/kernel/config/s9u-va48-norelr.fragment"
 
 # Optional compiler cache.  Auto-enable when ccache is installed, while keeping
 # an explicit opt-out for reproducibility checks and constrained hosts.
@@ -54,9 +55,9 @@ fi
 mkdir -p work artifacts/kernel
 
 case "$PROFILE" in
- bringup|s9u-control|s9u-nobti|s9u-va48) ;;
+ bringup|s9u-control|s9u-nobti|s9u-va48|s9u-va48-norelr) ;;
  *)
-  echo "Unknown GTS9_CONFIG_PROFILE: $PROFILE (expected bringup, s9u-control, s9u-nobti or s9u-va48)" >&2
+  echo "Unknown GTS9_CONFIG_PROFILE: $PROFILE (expected bringup, s9u-control, s9u-nobti, s9u-va48 or s9u-va48-norelr)" >&2
   exit 1
   ;;
 esac
@@ -92,17 +93,21 @@ case "$PROFILE" in
  bringup)
   make -C "$SRC" O="$OUT" "${MAKE_TOOLCHAIN[@]}" KCONFIG_ALLCONFIG="$BRINGUP_CONFIG" allnoconfig
   ;;
- s9u-control|s9u-nobti|s9u-va48)
+ s9u-control|s9u-nobti|s9u-va48|s9u-va48-norelr)
   [[ -f "$S9U_REFERENCE_CONFIG" ]] || { echo "Missing S9 Ultra reference config" >&2; exit 1; }
   rm -f "$OUT/.config"
   merge_inputs=("$S9U_REFERENCE_CONFIG" "$BRINGUP_CONFIG")
-  if [[ "$PROFILE" == "s9u-nobti" || "$PROFILE" == "s9u-va48" ]]; then
+  if [[ "$PROFILE" == "s9u-nobti" || "$PROFILE" == "s9u-va48" || "$PROFILE" == "s9u-va48-norelr" ]]; then
     [[ -f "$S9U_NOBTI_CONFIG" ]] || { echo "Missing S9 Ultra no-BTI override" >&2; exit 1; }
     merge_inputs+=("$S9U_NOBTI_CONFIG")
   fi
-  if [[ "$PROFILE" == "s9u-va48" ]]; then
+  if [[ "$PROFILE" == "s9u-va48" || "$PROFILE" == "s9u-va48-norelr" ]]; then
     [[ -f "$S9U_VA48_CONFIG" ]] || { echo "Missing S9 Ultra VA48 override" >&2; exit 1; }
     merge_inputs+=("$S9U_VA48_CONFIG")
+  fi
+  if [[ "$PROFILE" == "s9u-va48-norelr" ]]; then
+    [[ -f "$S9U_VA48_NORELR_CONFIG" ]] || { echo "Missing S9 Ultra VA48 no-RELR override" >&2; exit 1; }
+    merge_inputs+=("$S9U_VA48_NORELR_CONFIG")
   fi
   KCONFIG_CONFIG="$OUT/.config" bash "$SRC/scripts/kconfig/merge_config.sh" -m -O "$OUT" \
     "${merge_inputs[@]}"

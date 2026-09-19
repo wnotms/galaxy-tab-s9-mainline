@@ -933,7 +933,7 @@ def main():
     p.add_argument("--clean-source", action="store_true")
     p.add_argument(
         "--config-profile",
-        choices=("bringup", "s9u-control", "s9u-nobti", "s9u-va48"),
+        choices=("bringup", "s9u-control", "s9u-nobti", "s9u-va48", "s9u-va48-norelr"),
         default="bringup",
         help="kernel config generation profile used by the build command",
     )

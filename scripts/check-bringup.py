@@ -126,6 +126,7 @@ def main() -> int:
         's9u-control',
         's9u-nobti',
         's9u-va48',
+        's9u-va48-norelr',
         'merge_config.sh',
         's9u-mainline-aarch64.reference.config',
         'GTS9_CCACHE',
@@ -158,6 +159,7 @@ def main() -> int:
         or "s9u-control" not in entry_test_text
         or "s9u-nobti" not in entry_test_text
         or "s9u-va48" not in entry_test_text
+        or "s9u-va48-norelr" not in entry_test_text
     ):
         raise RuntimeError("entry-marker harness lacks s9u-control profile support")
     nobti = (ROOT / "kernel/config/s9u-nobti.fragment").read_text()
@@ -172,7 +174,15 @@ def main() -> int:
     ):
         if token not in va48:
             raise RuntimeError("S9U VA48 override is missing: " + token)
+    norelr = (ROOT / "kernel/config/s9u-va48-norelr.fragment").read_text()
+    if "# CONFIG_RELR is not set" not in norelr:
+        raise RuntimeError("S9U VA48 no-RELR override is missing CONFIG_RELR=n")
+    if "s9u-va48 control must keep CONFIG_RELR enabled" not in check_config_text:
+        raise RuntimeError("check-config lacks RELR-on control validation")
+    if "s9u-va48-norelr must keep CONFIG_RELR disabled" not in check_config_text:
+        raise RuntimeError("check-config lacks no-RELR control validation")
     print("PASS: pinned S9 Ultra config control profiles")
+    print("PASS: s9u-va48 RELR/no-RELR A/B control")
 
     bundle_builder_text = (ROOT / "scripts/build-boot-bundle.py").read_text()
     for token in (
