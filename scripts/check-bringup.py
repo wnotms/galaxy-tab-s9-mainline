@@ -170,6 +170,23 @@ def main() -> int:
         raise RuntimeError("MMU-on marker patch is not enabled in series")
     print("PASS: MMU-on persistent entry markers")
 
+    switch_patch = ROOT / "kernel/patches/record-arm64-virtual-switch-probe.patch"
+    switch_text = switch_patch.read_text()
+    for token in (
+        "G9V0001",
+        "G9V0002",
+        "G9V0003",
+        "gts9wifi_entry_marker_inline",
+        "ldr\tw9, [x8]",
+    ):
+        if token not in switch_text:
+            raise RuntimeError("missing virtual-switch probe support: " + token)
+    if "record-arm64-virtual-switch-probe.patch" not in (
+        ROOT / "kernel/patches/series"
+    ).read_text().splitlines():
+        raise RuntimeError("virtual-switch probe patch is not enabled in series")
+    print("PASS: primary virtual-switch probe markers")
+
     init_text = (ROOT / "initramfs/init").read_text()
     for marker in REQUIRED_INIT_MARKERS:
         if marker not in init_text:

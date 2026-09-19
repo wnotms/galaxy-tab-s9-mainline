@@ -30,13 +30,18 @@ import sys
 ROOT = Path(__file__).resolve().parent.parent
 PATCH = ROOT / "kernel/patches/record-arm64-entry-markers.patch"
 MMU_PATCH = ROOT / "kernel/patches/record-arm64-mmu-on-markers.patch"
+SWITCH_PATCH = ROOT / "kernel/patches/record-arm64-virtual-switch-probe.patch"
 SERIES = ROOT / "kernel/patches/series"
 SNAPSHOT = ROOT / "artifacts/device-snapshot-sm-x710-20260918"
 BUNDLE = ROOT / "artifacts/boot-bundle"
 STATE_DIR = ROOT / "artifacts/entry-marker-test"
 STATE_FILE = STATE_DIR / "active.json"
 PARTITIONS = ("boot", "init_boot", "vendor_boot", "dtbo")
-MARKERS = tuple(f"G9E13{i:02d}" for i in range(1, 18))
+MARKERS = tuple(f"G9E13{i:02d}" for i in range(1, 18)) + (
+    "G9V0001",
+    "G9V0002",
+    "G9V0003",
+)
 USB_DIAG_RE = re.compile(
     r"(?:dwc3|\budc\b|gadget|usb0|\bncm\b|eusb|ptn3222|type-?c|configfs|"
     r"rpmh|tcsr|GTS9WIFI: device_link|GTS9WIFI: platform_supplier|"
@@ -63,6 +68,9 @@ PATTERNS = {
     "entry_15": re.compile(r"G9E1315"),
     "entry_16": re.compile(r"G9E1316"),
     "entry_17": re.compile(r"G9E1317"),
+    "switch_target_loaded": re.compile(r"G9V0001"),
+    "switch_target_readable": re.compile(r"G9V0002"),
+    "switch_landed_inline": re.compile(r"G9V0003"),
     "setup_after_fdt": re.compile(r"GTS9WIFI: setup_arch after_fdt"),
     "setup_after_memblock": re.compile(r"GTS9WIFI: setup_arch after_memblock"),
     "setup_after_paging": re.compile(r"GTS9WIFI: setup_arch after_paging"),
@@ -197,6 +205,9 @@ STAGES = (
     ("entry_16", "HEAD_AFTER_FINALISE_EL2"),
     ("entry_15", "HEAD_BEFORE_FINALISE_EL2"),
     ("entry_14", "HEAD_PRIMARY_SWITCHED"),
+    ("switch_landed_inline", "HEAD_PRIMARY_SWITCH_LANDED_INLINE"),
+    ("switch_target_readable", "HEAD_PRIMARY_SWITCH_TARGET_READABLE"),
+    ("switch_target_loaded", "HEAD_PRIMARY_SWITCH_TARGET_LOADED"),
     ("entry_13", "HEAD_AFTER_EARLY_MAP_KERNEL"),
     ("entry_12", "HEAD_AFTER_MAP_KERNEL"),
     ("entry_11", "HEAD_BEFORE_MAP_KERNEL"),
@@ -255,6 +266,8 @@ def verify_repo():
         raise RuntimeError("entry-marker patch is missing")
     if not MMU_PATCH.is_file():
         raise RuntimeError("MMU-on entry-marker patch is missing")
+    if not SWITCH_PATCH.is_file():
+        raise RuntimeError("virtual-switch probe patch is missing")
     late_patch = ROOT / "kernel/patches/record-late-boot-checkpoints.patch"
     exec_patch = ROOT / "kernel/patches/record-rdinit-exec-result.patch"
     if not late_patch.is_file():
@@ -262,10 +275,22 @@ def verify_repo():
     if not exec_patch.is_file():
         raise RuntimeError("rdinit exec-result patch is missing")
     series = SERIES.read_text().splitlines()
-    for required in (PATCH.name, MMU_PATCH.name, late_patch.name, exec_patch.name):
+    for required in (
+        PATCH.name,
+        MMU_PATCH.name,
+        SWITCH_PATCH.name,
+        late_patch.name,
+        exec_patch.name,
+    ):
         if required not in series:
             raise RuntimeError(required + " is not enabled in series")
-    text = PATCH.read_text() + "\n" + MMU_PATCH.read_text()
+    text = (
+        PATCH.read_text()
+        + "\n"
+        + MMU_PATCH.read_text()
+        + "\n"
+        + SWITCH_PATCH.read_text()
+    )
     for marker in MARKERS:
         if marker not in text:
             raise RuntimeError("missing marker in patch: " + marker)
@@ -499,7 +524,15 @@ def last_match(summary, key):
 
 def record_interpretation(summary):
     m = summary.get("matches", {})
-    if not m.get("linux") and any(m.get(f"entry_{i:02d}") for i in range(6, 18)):
+    if (
+        not m.get("linux")
+        and (
+            any(m.get(f"entry_{i:02d}") for i in range(6, 18))
+            or m.get("switch_target_loaded")
+            or m.get("switch_target_readable")
+            or m.get("switch_landed_inline")
+        )
+    ):
         return (
             "主线内核已越过早期 MMU-off 入口并执行到 "
             + deepest(m)

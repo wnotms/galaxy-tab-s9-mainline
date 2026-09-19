@@ -1,0 +1,58 @@
+Subject: [PATCH] arm64: probe SM-X710 primary virtual switch
+
+The S9U control reaches G9E1313 after __pi_early_map_kernel() returns but does
+not leave the first helper-based marker in __primary_switched. Add three narrow
+checkpoints around the final branch:
+
+- G9V0001 after loading the __primary_switched virtual target;
+- G9V0002 after a data load from that target succeeds;
+- G9V0003 as an inline, no-call marker at the first instruction of
+  __primary_switched.
+
+The inline marker avoids depending on another high-VA branch before proving
+that the primary virtual switch itself landed.
+
+diff --git a/arch/arm64/kernel/head.S b/arch/arm64/kernel/head.S
+--- a/arch/arm64/kernel/head.S
++++ b/arch/arm64/kernel/head.S
+@@ -174,3 +174,18 @@
+ 1:	ret
+ SYM_CODE_END(gts9wifi_entry_marker_append_mmu_on)
++
++	.macro	gts9wifi_entry_marker_inline value
++	mov_q	x12, \value
++	mov_q	x9, 0x0000000880200000
++	ldr	w10, [x9, #8]
++	add	x11, x9, #16
++	add	x11, x11, w10, uxtw
++	str	x12, [x11]
++	add	w10, w10, #8
++	str	w10, [x9, #8]
++	str	w10, [x9, #12]
++	dc	cvac, x11
++	dc	cvac, x9
++	dsb	sy
++	.endm
+ #endif
+@@ -213,6 +228,9 @@
+  *   x0 = __pa(KERNEL_START)
+  */
+ SYM_FUNC_START_LOCAL(__primary_switched)
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	gts9wifi_entry_marker_inline 0x0a33303030563947	// "G9V0003\n"
++#endif
+ #ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
+ 	mov_q	x12, 0x0a34313331453947	// "G9E1314\n"
+ 	bl	gts9wifi_entry_marker_append_mmu_on
+@@ -530,4 +548,11 @@
+ 	ldr	x8, =__primary_switched
++#ifdef CONFIG_SAMSUNG_GTS9WIFI_SEC_LOG
++	mov_q	x12, 0x0a31303030563947	// "G9V0001\n"
++	bl	gts9wifi_entry_marker_append_mmu_on
++	ldr	w9, [x8]			// prove the high-VA target is readable
++	mov_q	x12, 0x0a32303030563947	// "G9V0002\n"
++	bl	gts9wifi_entry_marker_append_mmu_on
++#endif
+ 	adrp	x0, KERNEL_START		// __pa(KERNEL_START)
+ 	br	x8
+ SYM_FUNC_END(__primary_switch)
