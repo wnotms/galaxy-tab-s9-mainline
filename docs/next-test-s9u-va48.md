@@ -74,18 +74,22 @@ grep -E 'CONFIG_ARM64_(4K_PAGES|VA_BITS_48|VA_BITS_52|PA_BITS_48|PA_BITS_52|LPA2
   artifacts/kernel/config
 ```
 
-Expected:
+Expected selected values:
 
 ```text
 s9u-va48
 CONFIG_ARM64_4K_PAGES=y
 CONFIG_ARM64_VA_BITS_48=y
-# CONFIG_ARM64_VA_BITS_52 is not set
+CONFIG_ARM64_VA_BITS=48
 CONFIG_ARM64_PA_BITS_48=y
-# CONFIG_ARM64_PA_BITS_52 is not set
-# CONFIG_ARM64_LPA2 is not set
+CONFIG_ARM64_PA_BITS=48
 CONFIG_PGTABLE_LEVELS=4
 ```
+
+The disabled `ARM64_VA_BITS_52`, `ARM64_PA_BITS_52`, and `ARM64_LPA2`
+symbols may either appear as `# CONFIG_... is not set` or be omitted entirely
+from the generated `.config`, depending on Kconfig visibility/dependencies.
+The validator therefore rejects those symbols only if they resolve to `=y`.
 
 Also verify the runtime options remain enabled:
 

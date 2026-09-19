@@ -140,7 +140,17 @@ def main() -> int:
         if token not in build_kernel_text:
             raise RuntimeError("missing S9U control build support: " + token)
 
+    check_config_text = (ROOT / "scripts/check-config.py").read_text()
+    for token in (
+        'CONFIG_ARM64_VA_BITS=48',
+        'CONFIG_ARM64_PA_BITS=48',
+        'for name in ("ARM64_VA_BITS_52", "ARM64_PA_BITS_52", "ARM64_LPA2")',
+        'if enabled(name)',
+    ):
+        if token not in check_config_text:
+            raise RuntimeError("missing robust s9u-va48 config validation: " + token)
     print("PASS: optional ccache kernel build support")
+    print("PASS: s9u-va48 positive/forbidden config validation")
 
     entry_test_text = (ROOT / "scripts/twrp-entry-marker-test.py").read_text()
     if (

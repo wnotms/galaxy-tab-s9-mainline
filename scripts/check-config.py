@@ -27,26 +27,42 @@ CPU_IDLE_MULTIPLE_DRIVERS DT_IDLE_STATES
 INTERCONNECT_QCOM_BCM_VOTER INTERCONNECT_QCOM_RPMH""".split()
 
 config = set(args.config.read_text().splitlines())
-if args.profile in ("s9u-nobti", "s9u-va48") and "CONFIG_ARM64_BTI_KERNEL=y" in config:
+
+def enabled(name: str) -> bool:
+    return f"CONFIG_{name}=y" in config
+
+def require_lines(lines: set[str], description: str) -> None:
+    missing = sorted(lines - config)
+    if missing:
+        raise SystemExit(description + ": " + ", ".join(missing))
+
+if args.profile in ("s9u-nobti", "s9u-va48") and enabled("ARM64_BTI_KERNEL"):
     raise SystemExit(f"{args.profile} control must keep CONFIG_ARM64_BTI_KERNEL disabled")
-if args.profile in ("s9u-nobti", "s9u-va48") and "# CONFIG_ARM64_BTI_KERNEL is not set" not in config:
-    raise SystemExit(f"{args.profile} control did not resolve ARM64_BTI_KERNEL to n")
 
 if args.profile == "s9u-va48":
-    expected = {
-        "CONFIG_ARM64_4K_PAGES=y",
-        "CONFIG_ARM64_VA_BITS_48=y",
-        "# CONFIG_ARM64_VA_BITS_52 is not set",
-        "CONFIG_ARM64_PA_BITS_48=y",
-        "# CONFIG_ARM64_PA_BITS_52 is not set",
-        "# CONFIG_ARM64_LPA2 is not set",
-        "CONFIG_PGTABLE_LEVELS=4",
-    }
-    missing_va48 = sorted(expected - config)
-    if missing_va48:
+    # Kconfig may omit disabled invisible/choice symbols entirely instead of
+    # emitting '# CONFIG_FOO is not set'. Validate the selected positive
+    # geometry and reject forbidden y-values rather than requiring comments.
+    require_lines(
+        {
+            "CONFIG_ARM64_4K_PAGES=y",
+            "CONFIG_ARM64_VA_BITS_48=y",
+            "CONFIG_ARM64_VA_BITS=48",
+            "CONFIG_ARM64_PA_BITS_48=y",
+            "CONFIG_ARM64_PA_BITS=48",
+            "CONFIG_PGTABLE_LEVELS=4",
+        },
+        "s9u-va48 did not resolve the expected 4K/VA48/PA48/4-level geometry",
+    )
+    forbidden = [
+        name
+        for name in ("ARM64_VA_BITS_52", "ARM64_PA_BITS_52", "ARM64_LPA2")
+        if enabled(name)
+    ]
+    if forbidden:
         raise SystemExit(
-            "s9u-va48 did not resolve the expected 4K/VA48/PA48/non-LPA2 geometry: "
-            + ", ".join(missing_va48)
+            "s9u-va48 unexpectedly enabled: "
+            + ", ".join("CONFIG_" + name for name in forbidden)
         )
 missing = [name for name in required if f"CONFIG_{name}=y" not in config]
 if missing:
